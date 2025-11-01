@@ -27,7 +27,7 @@ export default defineConfig({
       scss: {
         additionalData: `@use "@/scss/variables" as *;`,
         // https://github.com/twbs/bootstrap/issues/40962#issuecomment-2448214806
-        silenceDeprecations: ['mixed-decls', 'color-functions', 'global-builtin', 'import'],
+        silenceDeprecations: ['color-functions', 'global-builtin', 'import'],
       },
     },
   },

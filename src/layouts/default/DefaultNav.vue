@@ -30,6 +30,10 @@
 <script setup>
 import { ref } from 'vue'
 
+defineOptions({
+  name: 'DefaultNav',
+})
+
 const navbarExpanded = ref(false)
 
 const toggleNavbar = () => {
