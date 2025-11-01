@@ -9,6 +9,10 @@
 <script setup>
 import DefaultFooter from './DefaultFooter.vue'
 import DefaultNav from './DefaultNav.vue'
+
+defineOptions({
+  name: 'DefaultLayout',
+})
 </script>
 
 <style lang="scss">

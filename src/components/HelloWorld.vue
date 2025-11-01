@@ -13,13 +13,11 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'HelloWorld',
-}
-</script>
-
 <script setup>
+defineOptions({
+  name: 'HelloWorld',
+})
+
 defineProps({
   msg: {
     type: String,
