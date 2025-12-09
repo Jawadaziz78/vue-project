@@ -4,6 +4,7 @@ import { defineConfig } from 'vite'
 import { createHtmlPlugin } from 'vite-plugin-html'
 
 export default defineConfig({
+  base: '/vue/',          // ⭐ IMPORTANT: app lives under /vue/
   plugins: [
     vue(),
     createHtmlPlugin({
@@ -18,7 +19,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': resolve(__dirname, '/src'),
+      '@': resolve(__dirname, 'src'),
       '~bootstrap': 'bootstrap',
     },
   },
