@@ -12,7 +12,7 @@ pipeline {
         // -----------------------------------------------------
         // CHANGE THIS VALUE PER REPO: 'laravel', 'vue', or 'nextjs'
         // -----------------------------------------------------
-        PROJECT_TYPE = 'laravel'
+        PROJECT_TYPE = 'vue'
     }
 
     stages {
