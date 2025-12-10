@@ -6,10 +6,14 @@ pipeline {
     }
 
     environment {
-        DEPLOY_HOST = '172.31.77.148'
-        DEPLOY_USER = 'ubuntu'
-        BUILD_DIR   = '/home/ubuntu/build-staging'
-        SLACK_URL   = 'https://hooks.slack.com/services/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'
+        DEPLOY_HOST   = '172.31.77.148'
+        DEPLOY_USER   = 'ubuntu'
+        BUILD_DIR     = '/home/ubuntu/build-staging'
+        
+        
+        // SLACK_PART_A  = 'https://hooks.slack.com/services/'
+        //SLACK_PART_B  = 'T01KC5SLA49/B0A284K2S6T/'
+        //SLACK_PART_C  = 'JRJsWNSYnh2tujdMo4ph0Tgp'
 
         // -----------------------------------------------------
         // CHANGE THIS PER REPO: 'laravel', 'vue', or 'nextjs'
@@ -131,10 +135,10 @@ pipeline {
 
     post {
         success {
-            sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"✅ Deployment SUCCESS: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_URL}"
+            sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Jawad Deployment SUCCESS: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_PART_A}${SLACK_PART_B}${SLACK_PART_C}"
         }
         failure {
-            sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"❌ Deployment FAILED: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_URL}"
+            sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Jawad Deployment FAILED: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_PART_A}${SLACK_PART_B}${SLACK_PART_C}"
         }
     }
 }
