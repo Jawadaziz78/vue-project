@@ -60,6 +60,11 @@ pipeline {
                                     git reset --hard origin/${BRANCH_NAME:-main}
                                     
                                     cd web
+                                    
+                                    # FIX: Remove old build artifacts to prevent cache errors
+                                    echo '🧹 Cleaning old build...'
+                                    rm -rf .next
+                                    
                                     # Build assets (No Install)
                                     echo '⚙️ Building Next.js...'
                                     npm run build
@@ -112,7 +117,7 @@ pipeline {
                                 
                                 nextjs)
                                     echo '🔄 Restarting PM2 processes...'
-                                    # RESTART PM2 (Confirmed you are using it)
+                                    # RESTART PM2
                                     pm2 restart all
                                     
                                     echo '🔄 Reloading Nginx...'
