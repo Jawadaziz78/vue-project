@@ -8,7 +8,11 @@ pipeline {
     environment {
         DEPLOY_HOST = '172.31.77.148'
         DEPLOY_USER = 'ubuntu'
-        PROJECT_TYPE = 'vue'
+        
+        // -----------------------------------------------------
+        // CHANGE THIS VALUE PER REPO: 'laravel', 'vue', or 'nextjs'
+        // -----------------------------------------------------
+        PROJECT_TYPE = 'laravel'
     }
 
     stages {
@@ -17,16 +21,13 @@ pipeline {
                 sshagent(['deploy-server-key']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                            # 1. FORCE LOAD NVM (Node 20)
+                            # 1. FORCE LOAD NVM (Node 20) for Vue/Next.js compatibility
                             export NVM_DIR="\\$HOME/.nvm"
                             [ -s "\\$NVM_DIR/nvm.sh" ] && . "\\$NVM_DIR/nvm.sh"
                             nvm use 20
 
                             set -e
-                            echo '-----------------------------------'
-                            echo '🚀 DEPLOYING: ${PROJECT_TYPE}'
-                            echo '-----------------------------------'
-
+                            
                             case \\"${PROJECT_TYPE}\\" in
                                 laravel)
                                     cd /home/ubuntu/projects/laravel
@@ -34,7 +35,6 @@ pipeline {
                                     git fetch origin
                                     git reset --hard origin/${BRANCH_NAME:-main}
                                     
-                                    echo '⚙️ Running Laravel Build...'
                                     php artisan optimize:clear
                                     php artisan config:cache
                                     php artisan route:cache
@@ -47,13 +47,8 @@ pipeline {
                                     git fetch origin
                                     git reset --hard origin/${BRANCH_NAME:-main}
                                     
-                                    echo '⚙️ Setup pnpm...'
-                                    # Install pnpm globaly using the active Node version
-                                    npm install -g pnpm
-                                    
-                                    echo '⚙️ Running Vue Build (via pnpm)...'
-                                    pnpm install
-                                    pnpm run build
+                                    # NO INSTALL - DIRECT BUILD
+                                    npm run build
                                     ;;
                                 
                                 nextjs)
@@ -62,19 +57,16 @@ pipeline {
                                     git fetch origin
                                     git reset --hard origin/${BRANCH_NAME:-main}
                                     
-                                    echo '⚙️ Running Next.js Build...'
                                     cd web
-                                    npm install
+                                    
+                                    # NO INSTALL - DIRECT BUILD
                                     npm run build
                                     ;;
                                 
                                 *)
-                                    echo '❌ Error: Unknown PROJECT_TYPE'
                                     exit 1
                                     ;;
                             esac
-                            
-                            echo '✅ SUCCESS'
                         "
                     '''
                 }
