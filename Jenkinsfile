@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -8,24 +9,39 @@ pipeline {
     environment {
         DEPLOY_HOST     = '172.31.77.148'
         DEPLOY_USER     = 'ubuntu'
-        BUILD_DIR       = '/home/ubuntu/build-staging'
+        
+        // NOTE: BUILD_DIR is now removed from here. 
+        // It is handled automatically in the 'Build' stage based on PROJECT_TYPE.
+
+        // CHANGE THIS variable for each project (laravel, vue, or nextjs)
         PROJECT_TYPE    = 'vue' 
         
-        // SLACK CONFIGURATION (Commented Out)
-        // SLACK_PART_A  = 'https://hooks.slack.com/services/'
-        // SLACK_PART_B  = 'T01KC5SLA49/B0A284K2S6T/'
-        // SLACK_PART_C  = 'JRJsWNSYnh2tujdMo4ph0Tgp'
+        // SLACK CONFIGURATION
+        SLACK_PART_A  = 'https://hooks.slack.com/services/'
+        SLACK_PART_B  = 'T01KC5SLA49/B0A284K2S6T/'
+        SLACK_PART_C  = 'JRJsWNSYnh2tujdMo4ph0Tgp'
     }
 
     stages {
         
         stage('Build') {
             steps {
+                // FIX: Dynamically set the Build Directory based on Project Type
+                script {
+                     def buildPaths = [
+                        'laravel': '/home/ubuntu/build-staging',
+                        'vue':     '/home/ubuntu/build-staging-vue',
+                        'nextjs':  '/home/ubuntu/build-staging-nextjs'
+                     ]
+                     env.BUILD_DIR = buildPaths[env.PROJECT_TYPE]
+                }
+
                 sshagent(['deploy-server-key']) {
                     sh '''
                     ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                         set -e
 
+                        # We use the dynamic BUILD_DIR determined above
                         cd ${BUILD_DIR}
                         
                         # FIX: Replaced 'git pull' with fetch + reset --hard
@@ -169,7 +185,10 @@ pipeline {
                             
                             nextjs)
                                 echo 'Rebuilding Next.js...'
+                                
+                                # !!! IMPORTANT: If your package.json is in the root, REMOVE 'cd web' below !!!
                                 cd web
+                                
                                 npm run build
                                 pm2 restart all
                                 sudo systemctl reload nginx
@@ -186,12 +205,12 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline succeeded. (Slack notification is commented out)"
-            // sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Jawad Deployment SUCCESS: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_PART_A}${SLACK_PART_B}${SLACK_PART_C}"
+            echo "Pipeline succeeded. Sending Slack notification..."
+            sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Jawad Deployment SUCCESS: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_PART_A}${SLACK_PART_B}${SLACK_PART_C}"
         }
         failure {
-            echo "Pipeline failed. (Slack notification is commented out)"
-            // sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Jawad Deployment FAILED: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_PART_A}${SLACK_PART_B}${SLACK_PART_C}"
+            echo "Pipeline failed. Sending Slack notification..."
+            sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Jawad Deployment FAILED: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_PART_A}${SLACK_PART_B}${SLACK_PART_C}"
         }
     }
 }
