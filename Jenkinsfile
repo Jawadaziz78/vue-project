@@ -6,127 +6,178 @@ pipeline {
     }
 
     environment {
-        DEPLOY_HOST   = '172.31.77.148'
-        DEPLOY_USER   = 'ubuntu'
-        BUILD_DIR     = '/home/ubuntu/build-staging'
+        DEPLOY_HOST     = '172.31.77.148'
+        DEPLOY_USER     = 'ubuntu'
+        BUILD_DIR       = '/home/ubuntu/build-staging'
+        PROJECT_TYPE    = 'vue' 
         
-        
+        // SLACK CONFIGURATION (Commented Out)
         // SLACK_PART_A  = 'https://hooks.slack.com/services/'
-        //SLACK_PART_B  = 'T01KC5SLA49/B0A284K2S6T/'
-        //SLACK_PART_C  = 'JRJsWNSYnh2tujdMo4ph0Tgp'
-
-        // -----------------------------------------------------
-        // CHANGE THIS PER REPO: 'laravel', 'vue', or 'nextjs'
-        // -----------------------------------------------------
-        PROJECT_TYPE = 'vue'
+        // SLACK_PART_B  = 'T01KC5SLA49/B0A284K2S6T/'
+        // SLACK_PART_C  = 'JRJsWNSYnh2tujdMo4ph0Tgp'
     }
 
     stages {
+        
         stage('Build') {
             steps {
                 sshagent(['deploy-server-key']) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                            set -e
-                            
-                            # 1. IDENTIFY REPO URL
-                            case \\"${PROJECT_TYPE}\\" in
-                                laravel) REPO_URL='https://github.com/Jawadaziz78/django-project.git' ;;
-                                vue)     REPO_URL='https://github.com/Jawadaziz78/vue-project.git' ;;
-                                nextjs)  REPO_URL='https://github.com/Jawadaziz78/nextjs-project.git' ;;
-                                *)       echo '❌ Error: Unknown Project Type'; exit 1 ;;
-                            esac
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                        set -e
 
-                            echo '-----------------------------------'
-                            echo '🚀 STAGE 1: BUILD (Cloning Code)'
-                            echo '-----------------------------------'
+                        cd ${BUILD_DIR}
+                        
+                        # FIX: Replaced 'git pull' with fetch + reset --hard
+                        # This prevents the 'divergent branches' error.
+                        git fetch origin ${BRANCH_NAME:-main}
+                        git reset --hard origin/${BRANCH_NAME:-main}
+                        git checkout ${BRANCH_NAME:-main} 
 
-                            # 2. PREPARE STAGING DIRECTORY
-                            sudo rm -rf ${BUILD_DIR}
-                            mkdir -p ${BUILD_DIR}
+                        case \\"${PROJECT_TYPE}\\" in
+                            laravel)
+                                # FIX: Copy .env if missing so artisan commands don't fail
+                                if [ ! -f .env ]; then cp .env.example .env; fi
+                                
+                                echo 'Running Laravel Optimization Tasks...'
+                                php artisan key:generate --force
+                                php artisan config:cache
+                                php artisan route:cache
+                                php artisan view:cache
+                                ;;
                             
-                            # 3. CLONE CODE
-                            git clone \\$REPO_URL ${BUILD_DIR}
-                            cd ${BUILD_DIR}
-                            git checkout ${BRANCH_NAME:-main}
+                            vue)
+                                echo '⚙️ Vue code updated. Skipping build/install.'
+                                ;;
                             
-                            echo '✅ Build/Clone Successful'
-                        "
+                            nextjs)
+                                echo '⚙️ Next.js code updated. Skipping build/install.'
+                                ;;
+                        esac
+                        
+                        echo '✅ Build/Update Successful'
+                    "
                     '''
                 }
             }
         }
 
-        stage('Test') {
-            steps {
-                // Empty Stage as requested
-                echo '⚠️ Test Stage is currently empty.'
-            }
-        }
+        // Stage 2: Test (Execute unit tests based on project type)
+        // stage('Test') {
+        //     steps {
+        //         sshagent(['deploy-server-key']) {
+        //             sh '''
+        //             ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+        //                 set -e
+        //                 cd ${BUILD_DIR}
+        //                 
+        //                 echo '-----------------------------------'
+        //                 echo '🧪 STAGE 2: TEST EXECUTION'
+        //                 echo '-----------------------------------'
+        //                 
+        //                 # Load Node 20
+        //                 export NVM_DIR=\\"\\$HOME/.nvm\\" 
+        //                 [ -s \\"\\$NVM_DIR/nvm.sh\\" ] && . \\"\\$NVM_DIR/nvm.sh\\" 
+        //                 nvm use 20
+        //
+        //                 # Execute tests based on PROJECT_TYPE
+        //                 case \\"${PROJECT_TYPE}\\" in
+        //                     laravel)
+        //                         # Setup in-memory SQLite for testing
+        //                         export DB_CONNECTION=sqlite
+        //                         export DB_DATABASE=:memory:
+        //                         
+        //                         php ./vendor/bin/phpunit --testsuite Unit
+        //                         ;;
+        //                     
+        //                     vue)
+        //                         npm run test:unit
+        //                         ;;
+        //                     
+        //                     nextjs)
+        //                         cd web
+        //                         npm run test
+        //                         ;;
+        //                     *)
+        //                         echo '⚠️ Skipping tests for project type: ${PROJECT_TYPE}'
+        //                         ;;
+        //                 esac
+        //
+        //                 echo '✅ Tests Completed Successfully'
+        //             "
+        //             '''
+        //         }
+        //     }
+        // }
 
         stage('Deploy') {
             steps {
+                // FIX: Define LIVE_DIR in Groovy to prevent 'mkdir missing operand' error
+                script {
+                    def projectDirs = [
+                        'laravel': '/home/ubuntu/projects/laravel/BookStack',
+                        'vue':     '/home/ubuntu/projects/vue/app',
+                        'nextjs':  '/home/ubuntu/projects/nextjs/blog'
+                    ]
+                    env.LIVE_DIR = projectDirs[env.PROJECT_TYPE]
+                }
+
                 sshagent(['deploy-server-key']) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                            set -e
-                            
-                            # 1. IDENTIFY LIVE DIRECTORY
-                            case \\"${PROJECT_TYPE}\\" in
-                                laravel) LIVE_DIR='/home/ubuntu/projects/laravel/BookStack' ;; # FIXED PATH
-                                vue)     LIVE_DIR='/home/ubuntu/projects/vue/app' ;;
-                                nextjs)  LIVE_DIR='/home/ubuntu/projects/nextjs/blog' ;;
-                            esac
+                    # We use ${LIVE_DIR} directly now because Jenkins injects it safely
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                        set -e
+                        
 
-                            echo '-----------------------------------'
-                            echo '🚀 STAGE 3: DEPLOY (Rsync & Config)'
-                            echo '📂 Target: '$LIVE_DIR
-                            echo '-----------------------------------'
+                        # RSYNC TO LIVE 
+                        # We exclude cache files so we don't copy the 'build' config to 'live'
+                        mkdir -p ${LIVE_DIR}
+                        rsync -av --delete --exclude='.env' --exclude='.git' --exclude='bootstrap/cache/*.php' --exclude='storage' --exclude='public/storage' --exclude='node_modules' --exclude='vendor' --exclude='public/dist' ${BUILD_DIR}/ ${LIVE_DIR}/
 
-                            # 2. RSYNC TO LIVE (Preserve .env and vendor)
-                            mkdir -p \\$LIVE_DIR
-                            rsync -av --delete --exclude='.env' --exclude='.git' --exclude='storage' --exclude='public/storage' --exclude='node_modules' --exclude='vendor' --exclude='public/dist' ${BUILD_DIR}/ \\$LIVE_DIR/
+                        # RUN POST-DEPLOY COMMANDS
+                        cd ${LIVE_DIR}
 
-                            # 3. RUN POST-DEPLOY COMMANDS
-                            cd \\$LIVE_DIR
+                        # Load Node 20
+                        # FIX: Hardcoded path based on your diagnostic result
+                        # This ensures the script loads successfully every time
+                        export NVM_DIR='/home/ubuntu/.nvm'
+                        [ -s \"/home/ubuntu/.nvm/nvm.sh\" ] && . \"/home/ubuntu/.nvm/nvm.sh\"
+                        nvm use 20
 
-                            # Load Node 20 (Required for Vue/Next.js)
-                            export NVM_DIR=\\"\\$HOME/.nvm\\"
-                            [ -s \\"\\$NVM_DIR/nvm.sh\\" ] && . \\"\\$NVM_DIR/nvm.sh\\"
-                            nvm use 20
-
-                            case \\"${PROJECT_TYPE}\\" in
-                                laravel)
-                                    echo '⚙️ Running Laravel Tasks...'
-                                    # Clear cache to fix 'Access Denied' errors
-                                    php artisan config:clear
-                                    php artisan cache:clear
-                                    
-                                    php artisan migrate --force
-                                    php artisan config:cache
-                                    php artisan route:cache
-                                    php artisan view:cache
-                                    sudo systemctl reload nginx
-                                    ;;
+                        # Run project-specific post-deploy tasks
+                        case \\"${PROJECT_TYPE}\\" in
+                            laravel)
+                                echo '⚙️ Running Compulsory Laravel Tasks...'
                                 
-                                vue)
-                                    echo '⚙️ Building Vue (using existing node_modules)...'
-                                    npm run build
-                                    sudo systemctl reload nginx
-                                    ;;
+                                # 1. Force delete poisoned config cache (Critical Fix)
+                                rm -f bootstrap/cache/*.php
                                 
-                                nextjs)
-                                    echo '⚙️ Building Next.js (using existing node_modules)...'
-                                    cd web
-                                    rm -rf .next
-                                    npm run build
-                                    pm2 restart all
-                                    sudo systemctl reload nginx
-                                    ;;
-                            esac
+                                # 2. Update Database 
+                                php artisan migrate --force
+                                
+                                # 3. Refresh Config Cache
+                                php artisan config:cache
+                                
+                                # 4. Reload Server 
+                                sudo systemctl reload nginx
+                                ;;
                             
-                            echo '✅ DEPLOYMENT SUCCESSFUL'
-                        "
+                            vue)
+                                echo 'Reloading Vue...'
+                                sudo systemctl reload nginx
+                                ;;
+                            
+                            nextjs)
+                                echo 'Rebuilding Next.js...'
+                                cd web
+                                npm run build
+                                pm2 restart all
+                                sudo systemctl reload nginx
+                                ;;
+                        esac
+                        
+                        echo '✅ DEPLOYMENT SUCCESSFUL'
+                    "
                     '''
                 }
             }
@@ -135,10 +186,12 @@ pipeline {
 
     post {
         success {
-            sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Jawad Deployment SUCCESS: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_PART_A}${SLACK_PART_B}${SLACK_PART_C}"
+            echo "Pipeline succeeded. (Slack notification is commented out)"
+            // sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Jawad Deployment SUCCESS: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_PART_A}${SLACK_PART_B}${SLACK_PART_C}"
         }
         failure {
-            sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Jawad Deployment FAILED: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_PART_A}${SLACK_PART_B}${SLACK_PART_C}"
+            echo "Pipeline failed. (Slack notification is commented out)"
+            // sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Jawad Deployment FAILED: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_PART_A}${SLACK_PART_B}${SLACK_PART_C}"
         }
     }
 }
