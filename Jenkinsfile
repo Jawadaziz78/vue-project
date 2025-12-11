@@ -9,10 +9,9 @@ pipeline {
         DEPLOY_HOST     = '172.31.77.148'
         DEPLOY_USER     = 'ubuntu'
         
-        // NOTE: BUILD_DIR is handled automatically in the 'Build' stage based on PROJECT_TYPE.
-
-        // CHANGE THIS variable for each project (laravel, vue, or nextjs)
-        PROJECT_TYPE    = 'vue' 
+        // ⚠️ CRITICAL: CHANGE THIS VARIABLE FOR EACH REPO
+        // Options: 'laravel', 'vue', 'nextjs'
+        PROJECT_TYPE    = 'nextjs' 
         
         // SLACK CONFIGURATION (Commented Out)
         // SLACK_PART_A  = 'https://hooks.slack.com/services/'
@@ -24,7 +23,6 @@ pipeline {
         
         stage('Build') {
             steps {
-                // FIX: Dynamically set the Build Directory based on Project Type
                 script {
                      def buildPaths = [
                         'laravel': '/home/ubuntu/build-staging',
@@ -39,20 +37,15 @@ pipeline {
                     ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                         set -e
 
-                        # We use the dynamic BUILD_DIR determined above
                         cd ${BUILD_DIR}
                         
-                        # FIX: Replaced 'git pull' with fetch + reset --hard
-                        # This prevents the 'divergent branches' error.
                         git fetch origin ${BRANCH_NAME:-main}
                         git reset --hard origin/${BRANCH_NAME:-main}
                         git checkout ${BRANCH_NAME:-main} 
 
                         case \\"${PROJECT_TYPE}\\" in
                             laravel)
-                                # FIX: Copy .env if missing so artisan commands don't fail
                                 if [ ! -f .env ]; then cp .env.example .env; fi
-                                
                                 echo 'Running Laravel Optimization Tasks...'
                                 php artisan key:generate --force
                                 php artisan config:cache
@@ -76,49 +69,33 @@ pipeline {
             }
         }
 
-        // Stage 2: Test (Execute unit tests based on project type)
+        // Stage 2: Test (Commented Out)
         // stage('Test') {
         //     steps {
         //         sshagent(['deploy-server-key']) {
         //             sh '''
         //             ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
         //                 set -e
-        //                 # Use the same dynamic build dir for testing
         //                 cd ${BUILD_DIR}
-        //                 
-        //                 echo '-----------------------------------'
-        //                 echo '🧪 STAGE 2: TEST EXECUTION'
-        //                 echo '-----------------------------------'
-        //                 
-        //                 # Load Node 20
         //                 export NVM_DIR=\\"\\$HOME/.nvm\\" 
         //                 [ -s \\"\\$NVM_DIR/nvm.sh\\" ] && . \\"\\$NVM_DIR/nvm.sh\\" 
         //                 nvm use 20
-        //
-        //                 # Execute tests based on PROJECT_TYPE
         //                 case \\"${PROJECT_TYPE}\\" in
         //                     laravel)
-        //                         # Setup in-memory SQLite for testing
         //                         export DB_CONNECTION=sqlite
         //                         export DB_DATABASE=:memory:
-        //                         
         //                         php ./vendor/bin/phpunit --testsuite Unit
         //                         ;;
-        //                     
         //                     vue)
-        //                         npm run test:unit
+        //                         npm install -g pnpm
+        //                         pnpm install
+        //                         pnpm run test:unit
         //                         ;;
-        //                     
         //                     nextjs)
         //                         cd web
         //                         npm run test
         //                         ;;
-        //                     *)
-        //                         echo '⚠️ Skipping tests for project type: ${PROJECT_TYPE}'
-        //                         ;;
         //                 esac
-        //
-        //                 echo '✅ Tests Completed Successfully'
         //             "
         //             '''
         //         }
@@ -127,7 +104,6 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                // FIX: Define LIVE_DIR in Groovy to prevent 'mkdir missing operand' error
                 script {
                     def projectDirs = [
                         'laravel': '/home/ubuntu/projects/laravel/BookStack',
@@ -139,13 +115,10 @@ pipeline {
 
                 sshagent(['deploy-server-key']) {
                     sh '''
-                    # We use ${LIVE_DIR} directly now because Jenkins injects it safely
                     ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                         set -e
                         
-
                         # RSYNC TO LIVE 
-                        # We exclude cache files so we don't copy the 'build' config to 'live'
                         mkdir -p ${LIVE_DIR}
                         rsync -av --delete --exclude='.env' --exclude='.git' --exclude='bootstrap/cache/*.php' --exclude='storage' --exclude='public/storage' --exclude='node_modules' --exclude='vendor' --exclude='public/dist' ${BUILD_DIR}/ ${LIVE_DIR}/
 
@@ -153,35 +126,28 @@ pipeline {
                         cd ${LIVE_DIR}
 
                         # Load Node 20
-                        # FIX: Hardcoded path based on your diagnostic result
-                        # This ensures the script loads successfully every time
                         export NVM_DIR='/home/ubuntu/.nvm'
                         [ -s \"/home/ubuntu/.nvm/nvm.sh\" ] && . \"/home/ubuntu/.nvm/nvm.sh\"
                         nvm use 20
 
-                        # Run project-specific post-deploy tasks
                         case \\"${PROJECT_TYPE}\\" in
                             laravel)
                                 echo '⚙️ Running Compulsory Laravel Tasks...'
-                                
-                                # 1. Force delete poisoned config cache (Critical Fix)
                                 rm -f bootstrap/cache/*.php
-                                
-                                # 2. Update Database 
                                 php artisan migrate --force
-                                
-                                # 3. Refresh Config Cache
                                 php artisan config:cache
-                                
-                                # 4. Reload Server 
                                 sudo systemctl reload nginx
                                 ;;
                             
                             vue)
-                                echo '⚙️ Building Vue...'
-                                # We MUST build here because rsync deleted the old dist folder
-                                npm install
-                                npm run build
+                                echo '⚙️ Building Vue (Using PNPM)...'
+                                
+                                # FIX: Install pnpm specifically for Vue
+                                npm install -g pnpm
+                                
+                                # Use pnpm instead of npm
+                                pnpm install
+                                pnpm run build
                                 
                                 echo 'Reloading Nginx...'
                                 sudo systemctl reload nginx
@@ -193,7 +159,6 @@ pipeline {
                                 # !!! IMPORTANT: If your package.json is in the root, REMOVE 'cd web' below !!!
                                 cd web
                                 
-                                # Added npm install to be safe
                                 npm install
                                 npm run build
                                 pm2 restart all
