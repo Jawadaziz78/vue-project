@@ -11,7 +11,7 @@ pipeline {
         
         // ⚠️ CRITICAL: CHANGE THIS VARIABLE FOR EACH REPO
         // Options: 'laravel', 'vue', 'nextjs'
-        PROJECT_TYPE    = 'nextjs' 
+        PROJECT_TYPE    = 'vue' 
         
         // SLACK CONFIGURATION (Commented Out)
         // SLACK_PART_A  = 'https://hooks.slack.com/services/'
