@@ -1,4 +1,3 @@
-
 pipeline {
     agent any
 
@@ -10,16 +9,15 @@ pipeline {
         DEPLOY_HOST     = '172.31.77.148'
         DEPLOY_USER     = 'ubuntu'
         
-        // NOTE: BUILD_DIR is now removed from here. 
-        // It is handled automatically in the 'Build' stage based on PROJECT_TYPE.
+        // NOTE: BUILD_DIR is handled automatically in the 'Build' stage based on PROJECT_TYPE.
 
         // CHANGE THIS variable for each project (laravel, vue, or nextjs)
         PROJECT_TYPE    = 'vue' 
         
-        // SLACK CONFIGURATION
-        SLACK_PART_A  = 'https://hooks.slack.com/services/'
-        SLACK_PART_B  = 'T01KC5SLA49/B0A284K2S6T/'
-        SLACK_PART_C  = 'JRJsWNSYnh2tujdMo4ph0Tgp'
+        // SLACK CONFIGURATION (Commented Out)
+        // SLACK_PART_A  = 'https://hooks.slack.com/services/'
+        // SLACK_PART_B  = 'T01KC5SLA49/B0A284K2S6T/'
+        // SLACK_PART_C  = 'JRJsWNSYnh2tujdMo4ph0Tgp'
     }
 
     stages {
@@ -85,6 +83,7 @@ pipeline {
         //             sh '''
         //             ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
         //                 set -e
+        //                 # Use the same dynamic build dir for testing
         //                 cd ${BUILD_DIR}
         //                 
         //                 echo '-----------------------------------'
@@ -179,7 +178,12 @@ pipeline {
                                 ;;
                             
                             vue)
-                                echo 'Reloading Vue...'
+                                echo '⚙️ Building Vue...'
+                                # We MUST build here because rsync deleted the old dist folder
+                                npm install
+                                npm run build
+                                
+                                echo 'Reloading Nginx...'
                                 sudo systemctl reload nginx
                                 ;;
                             
@@ -189,6 +193,8 @@ pipeline {
                                 # !!! IMPORTANT: If your package.json is in the root, REMOVE 'cd web' below !!!
                                 cd web
                                 
+                                # Added npm install to be safe
+                                npm install
                                 npm run build
                                 pm2 restart all
                                 sudo systemctl reload nginx
@@ -205,12 +211,12 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline succeeded. Sending Slack notification..."
-            sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Jawad Deployment SUCCESS: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_PART_A}${SLACK_PART_B}${SLACK_PART_C}"
+            echo "Pipeline succeeded. (Slack notification is commented out)"
+            // sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Jawad Deployment SUCCESS: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_PART_A}${SLACK_PART_B}${SLACK_PART_C}"
         }
         failure {
-            echo "Pipeline failed. Sending Slack notification..."
-            sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Jawad Deployment FAILED: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_PART_A}${SLACK_PART_B}${SLACK_PART_C}"
+            echo "Pipeline failed. (Slack notification is commented out)"
+            // sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Jawad Deployment FAILED: ${env.JOB_NAME} (Build #${env.BUILD_NUMBER})\"}' ${SLACK_PART_A}${SLACK_PART_B}${SLACK_PART_C}"
         }
     }
 }
