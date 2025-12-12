@@ -1,0 +1,33 @@
+<template>
+  <div class="row">
+    <div class="col text-center">
+      <h1 class="msg">{{ msg }}</h1>
+      <p>
+        A project setup using jawad vue-cli, created to easily scaffold new Vue.js projects doing now on development branch.
+        <br />
+        Find out more at
+        <a class="custom" href="https://cli.vuejs.org" target="_blank" rel="noopener">vue-cli documentation</a>
+        .
+      </p>
+    </div>
+  </div>
+</template>
+
+<script setup>
+defineOptions({
+  name: 'HelloWorld',
+})
+
+defineProps({
+  msg: {
+    type: String,
+    default: '',
+  },
+})
+</script>
+
+<style lang="scss" scoped>
+h1.msg {
+  color: $gray-900;
+}
+</style>
