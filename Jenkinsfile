@@ -43,12 +43,13 @@ pipeline {
     }
 
     // This block handles the notifications based on the result of the stages above
+   // This block handles the notifications based on the result of the stages above
     post {
         success {
             script {
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
-                    --data '{"text":"✅ *Deployment Successful*\\nJob: ${JOB_NAME}\\nBuild: #${BUILD_NUMBER}\\nBranch: ${BRANCH_NAME}"}' \
+                    --data '{"text":"✅ *Deployment Successful for ${PROJECT_TYPE}*\\nJob: ${JOB_NAME}\\nBuild: #${BUILD_NUMBER}\\nBranch: ${BRANCH_NAME}"}' \
                     ${SLACK_WEBHOOK}
                 """
             }
@@ -57,7 +58,7 @@ pipeline {
             script {
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
-                    --data '{"text":"❌ *Deployment Failed*\\nJob: ${JOB_NAME}\\nBuild: #${BUILD_NUMBER}\\nPlease check console output."}' \
+                    --data '{"text":"❌ *Deployment Failed for ${PROJECT_TYPE}*\\nJob: ${JOB_NAME}\\nBuild: #${BUILD_NUMBER}\\nPlease check console output."}' \
                     ${SLACK_WEBHOOK}
                 """
             }
