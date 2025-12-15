@@ -6,25 +6,24 @@ const routes = [
     path: '/',
     name: 'Home',
     component: Home,
-    meta: {
-      layout: 'default',
-    },
+    meta: { layout: 'default' },
   },
   {
     path: '/about',
     name: 'About',
-    // route level code-splitting
-    // this generates a separate chunk (about.[hash].js) for this route
-    // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/About.vue'),
-    meta: {
-      layout: 'default',
-    },
+    component: () => import('../views/About.vue'),
+    meta: { layout: 'default' },
+  },
+  // CRITICAL FIX: Redirects unknown paths to Home so the page isn't blank
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/',
   },
 ]
 
 const router = createRouter({
-  history: createWebHistory('/vue/'), // history mode with base /vue/
+  // Dynamically uses the Base URL from your .env file
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
   linkActiveClass: 'active',
 })
