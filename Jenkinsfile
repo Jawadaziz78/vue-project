@@ -1,6 +1,8 @@
 pipeline {
     agent any
-
+    triggers {
+        githubPush()
+    }
     environment {
         PROJECT_TYPE = 'vue'
         DEPLOY_HOST  = '172.31.77.148'
