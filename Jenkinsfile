@@ -3,10 +3,13 @@ pipeline {
     triggers { githubPush() }
     
     environment {
-        PROJECT_TYPE = 'vue'
-        DEPLOY_HOST  = '172.31.77.148'
-        DEPLOY_USER  = 'ubuntu'
-        BRANCH_NAME  = 'development'
+        PROJECT_TYPE  = 'vue'
+        DEPLOY_HOST   = '172.31.77.148'
+        DEPLOY_USER   = 'ubuntu'
+        BRANCH_NAME   = 'development'
+        
+        // Load the Slack URL securely. Ensure the ID 'slack-webhook-url' matches what you created in Jenkins.
+        SLACK_WEBHOOK = credentials('slack-webhook-url')
     }
 
     stages {
@@ -35,6 +38,28 @@ pipeline {
                         "
                     '''
                 }
+            }
+        }
+    }
+
+    // This block handles the notifications based on the result of the stages above
+    post {
+        success {
+            script {
+                sh """
+                    curl -X POST -H 'Content-type: application/json' \
+                    --data '{"text":"✅ *Deployment Successful*\\nJob: ${JOB_NAME}\\nBuild: #${BUILD_NUMBER}\\nBranch: ${BRANCH_NAME}"}' \
+                    ${SLACK_WEBHOOK}
+                """
+            }
+        }
+        failure {
+            script {
+                sh """
+                    curl -X POST -H 'Content-type: application/json' \
+                    --data '{"text":"❌ *Deployment Failed*\\nJob: ${JOB_NAME}\\nBuild: #${BUILD_NUMBER}\\nPlease check console output."}' \
+                    ${SLACK_WEBHOOK}
+                """
             }
         }
     }
