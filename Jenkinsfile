@@ -8,7 +8,7 @@ pipeline {
         DEPLOY_USER   = 'ubuntu'
         BRANCH_NAME   = 'development'
         
-        // Load the Slack URL securely. Ensure the ID 'slack-webhook-url' matches what you created in Jenkins.
+        // Load the Slack URL securely
         SLACK_WEBHOOK = credentials('slack-webhook-url')
     }
 
@@ -43,7 +43,6 @@ pipeline {
     }
 
     // This block handles the notifications based on the result of the stages above
-   // This block handles the notifications based on the result of the stages above
     post {
         success {
             script {
