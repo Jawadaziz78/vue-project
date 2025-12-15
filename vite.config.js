@@ -4,7 +4,7 @@ import { defineConfig } from 'vite'
 import { createHtmlPlugin } from 'vite-plugin-html'
 
 export default defineConfig({
-  base: '/vue/', // ⭐ IMPORTANT: app lives under /vue/
+  base: '/vue/development/', // ⭐ IMPORTANT: app lives under /vue/
   plugins: [
     vue(),
     createHtmlPlugin({
