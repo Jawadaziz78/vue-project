@@ -3,7 +3,7 @@ pipeline {
     triggers { githubPush() }
     
     environment {
-        PROJECT_TYPE  = 'vue' 
+        PROJECT_TYPE  = 'vue'
         DEPLOY_HOST   = '172.31.77.148'
         DEPLOY_USER   = 'ubuntu'
         SLACK_WEBHOOK = credentials('slack-webhook-url')
