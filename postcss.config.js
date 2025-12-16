@@ -18,9 +18,9 @@ export default {
         safelist: [
           'body',
           'html',
-          /-(leave|enter|appear)(|-(to|from|active))$/, // Normal transitions
-          /^router-link(|-exact)-active$/, // Router link classes
-          /^(?!(|.*?:)cursor-move).+-move$/, // Move transitions
+          /-(leave|enter|appear)(-(to|from|active))?$/, // Normal transitions
+          /^router-link(-exact)?-active$/, // Router link classes
+          /^(?!(.*:)?cursor-move).+-move$/, // Move transitions
           /.*data-v-.*/, // Keep scoped styles
           /^active/,
           // Vue3 selectors
