@@ -1,12 +1,12 @@
 pipeline {
     agent any
-    triggers { githubPush() }
+   // triggers { githubPush() }
     
     environment {
         PROJECT_TYPE  = 'vue'
         DEPLOY_HOST   = '172.31.77.148'
         DEPLOY_USER   = 'ubuntu'
-        SLACK_WEBHOOK = credentials('slack-webhook-url')
+      //  SLACK_WEBHOOK = credentials('slack-webhook-url')
     }
 
     stages {
