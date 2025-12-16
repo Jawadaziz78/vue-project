@@ -5,7 +5,7 @@ pipeline {
         PROJECT_TYPE  = 'vue'
         DEPLOY_HOST   = '172.31.77.148'
         DEPLOY_USER   = 'ubuntu'
-        SLACK_WEBHOOK = credentials('slack-webhook-url')
+        // SLACK_WEBHOOK = credentials('slack-webhook-url')
     }
     stages {
         stage('Build and Deploy') {
@@ -45,7 +45,7 @@ pipeline {
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
                     --data '{"text":"✅ *Deployment Successful for ${PROJECT_TYPE}*\\nBranch: ${env.BRANCH_NAME}"}' \
-                    ${SLACK_WEBHOOK}
+                    // ${SLACK_WEBHOOK}
                 """
             }
         }
@@ -55,7 +55,7 @@ pipeline {
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
                     --data '{"text":"❌ *Deployment Failed for ${PROJECT_TYPE}*\\nBranch: ${env.BRANCH_NAME}"}' \
-                    ${SLACK_WEBHOOK}
+                    // ${SLACK_WEBHOOK}
                 """
             }
         }
