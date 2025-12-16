@@ -52,32 +52,29 @@ pipeline {
         }
     }
 
-    post {
+        post {
         success {
             script {
                 echo "✅ Deployment Successful"
                 
-                /*
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
                     --data '{"text":"✅ *Deployment Successful for ${PROJECT_TYPE}*\\nBranch: ${env.BRANCH_NAME}"}' \
                     ${SLACK_WEBHOOK}
                 """
-                */
             }
         }
         failure {
             script {
                 echo "❌ Deployment Failed"
-
-                /*
+                
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
                     --data '{"text":"❌ *Deployment Failed for ${PROJECT_TYPE}*\\nBranch: ${env.BRANCH_NAME}"}' \
                     ${SLACK_WEBHOOK}
                 """
-                */
             }
         }
     }
+
 }
