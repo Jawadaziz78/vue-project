@@ -1,12 +1,13 @@
+import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
-import { resolve } from 'path'
 import { defineConfig } from 'vite'
 import { createHtmlPlugin } from 'vite-plugin-html'
 
 export default defineConfig({
-  base: '/vue/test/', // ⭐ IMPORTANT: app lives under /vue/
+  base: '/vue/stage/',
   plugins: [
     vue(),
+    // 1. FIX HTML ERROR: Handles <%- title %> tags
     createHtmlPlugin({
       minify: true,
       inject: {
@@ -19,27 +20,18 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src'),
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
       '~bootstrap': 'bootstrap',
     },
   },
   css: {
     preprocessorOptions: {
       scss: {
-        additionalData: `@use "@/scss/variables" as *;`,
-        // https://github.com/twbs/bootstrap/issues/40962#issuecomment-2448214806
-        silenceDeprecations: ['color-functions', 'global-builtin', 'import'],
+        // 2. FIX CSS ERROR: Globally injects variables so $gray-100 works everywhere
+        additionalData: `@use "@/scss/variables.scss" as *;`,
+        // Silences the annoying warnings
+        silenceDeprecations: ['import', 'global-builtin', 'color-functions'],
       },
-    },
-  },
-  test: {
-    globals: true,
-    globalSetup: './tests/vitest.global-setup.js',
-    setupFiles: ['./tests/vitest.globals.js'],
-    environment: 'jsdom',
-    reporters: ['default'],
-    coverage: {
-      reporter: ['text', 'json'],
     },
   },
 })
