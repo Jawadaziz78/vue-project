@@ -6,7 +6,10 @@ pipeline {
         PROJECT_TYPE  = 'vue'
         DEPLOY_HOST   = '172.31.77.148'
         DEPLOY_USER   = 'ubuntu'
-        QUALITY_GATE_STATUS = 'UNKNOWN'
+        // ❌ REMOVED: QUALITY_GATE_STATUS = 'UNKNOWN' (This was locking the variable)
+        
+        // Slack Webhook (Uncommented and active)
+        SLACK_WEBHOOK = credentials('slack-webhook-url')
     }
     
     stages {
@@ -29,6 +32,7 @@ pipeline {
             steps {
                 script {
                     timeout(time: 2, unit: 'MINUTES') {
+                        // This will create the variable dynamically now
                         env.QUALITY_GATE_STATUS = waitForQualityGate(abortPipeline: true).status
                     }
                 }
@@ -38,6 +42,7 @@ pipeline {
         stage('Build and Deploy') {
             steps {
                 script {
+                    // Safety Check
                     if (env.QUALITY_GATE_STATUS != 'OK') {
                         error "❌ Deployment Prevented: Quality Gate status is ${env.QUALITY_GATE_STATUS}"
                     }
@@ -70,31 +75,25 @@ pipeline {
         } 
     } 
     
-      post {
+    post {
         success {
             script {
                 echo "✅ Pipeline Successful"
-                // Slack Notification (Disabled)
-                /*
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
                     --data '{"text":"✅ *Deployment Successful for ${PROJECT_TYPE}*\\nBranch: ${env.BRANCH_NAME}"}' \
                     ${SLACK_WEBHOOK}
                 """
-                */
             }
         }
         failure {
             script {
                 echo "❌ Pipeline Failed"
-                // Slack Notification (Disabled)
-                /*
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
                     --data '{"text":"❌ *Deployment Failed for ${PROJECT_TYPE}*\\nBranch: ${env.BRANCH_NAME}\\nCheck SonarQube or Jenkins Logs."}' \
                     ${SLACK_WEBHOOK}
                 """
-                */
             }
         }
     }
