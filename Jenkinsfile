@@ -13,17 +13,14 @@ pipeline {
         // SLACK_WEBHOOK = credentials('slack-webhook-url')
     }
     
-    stages {
-        // --- STAGE 1: ANALYZE (Runs on Current Server .78) ---
-        stage('SonarQube Analysis') {
+    stage('SonarQube Analysis') {
             steps {
                 script {
                     withSonarQubeEnv('sonar-server') {
                         sh '''
-                          
-                           export SONAR_NODE_ARGS='--max-old-space-size=512'
+                            export SONAR_NODE_ARGS='--max-old-space-size=512'     
                             /home/ubuntu/sonar-scanner/bin/sonar-scanner \
-                                -Dsonar.projectKey=vue-project \
+                                -Dsonar.projectKey=${PROJECT_TYPE}-project \
                                 -Dsonar.sources=.
                         '''
                     }
@@ -31,7 +28,7 @@ pipeline {
             }
         }
 
-        // --- STAGE 2: DEPLOY (Connects to Old Server .148) ---
+ 
         stage('Build and Deploy') {
             steps {
                 script {
