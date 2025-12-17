@@ -20,11 +20,8 @@ pipeline {
                 script {
                     withSonarQubeEnv('sonar-server') {
                         sh '''
-                            echo '--- 🔍 Starting Local Analysis ---'
-                            # Prevent Memory Crash
-                            export SONAR_NODE_ARGS='--max-old-space-size=3072'
-                            
-                            # Run Scanner Locally
+                          
+                           export SONAR_NODE_ARGS='--max-old-space-size=512'
                             /home/ubuntu/sonar-scanner/bin/sonar-scanner \
                                 -Dsonar.projectKey=vue-project \
                                 -Dsonar.sources=.
