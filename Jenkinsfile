@@ -4,24 +4,27 @@ pipeline {
     
     environment {
         PROJECT_TYPE  = 'vue'
-        DEPLOY_HOST   = '172.31.78.78'
+        
+      
+        DEPLOY_HOST   = '172.31.77.148'
         DEPLOY_USER   = 'ubuntu'
         
+      
         // SLACK_WEBHOOK = credentials('slack-webhook-url')
     }
     
     stages {
-        
+        // --- STAGE 1: ANALYZE (Runs on Current Server .78) ---
         stage('SonarQube Analysis') {
             steps {
                 script {
-                  
                     withSonarQubeEnv('sonar-server') {
                         sh '''
-                            # Use this to prevent crashing
+                            echo '--- 🔍 Starting Local Analysis ---'
+                            # Prevent Memory Crash
                             export SONAR_NODE_ARGS='--max-old-space-size=3072'
                             
-                            # 2. Run your existing Scanner directly
+                            # Run Scanner Locally
                             /home/ubuntu/sonar-scanner/bin/sonar-scanner \
                                 -Dsonar.projectKey=vue-project \
                                 -Dsonar.sources=.
@@ -31,6 +34,7 @@ pipeline {
             }
         }
 
+        // --- STAGE 2: DEPLOY (Connects to Old Server .148) ---
         stage('Build and Deploy') {
             steps {
                 script {
@@ -38,12 +42,18 @@ pipeline {
                 }
                 sshagent(['deploy-server-key']) {
                     sh '''
+                        # Connect to the OLD server using the key Jenkins already has
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                             set -e
-                            echo '--- Starting Deployment ---'
+                            echo '--- 🚀 Connected to Deployment Server (${DEPLOY_HOST}) ---'
+                            
+                            # Navigate to Folder
                             cd ${LIVE_DIR}
+                            
+                            # Pull Code
                             git pull origin ${BRANCH_NAME}
                             
+                            # Build & Restart
                             case \"${PROJECT_TYPE}\" in
                                 vue)
                                     npm run build
