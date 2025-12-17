@@ -24,6 +24,16 @@ pipeline {
                 }
             }
         }
+        stage('Quality Gate') {
+            steps {
+                script {
+                    timeout(time: 2, unit: 'MINUTES') {
+                        // This waits for the Webhook from Step 1
+                        waitForQualityGate abortPipeline: true
+                    }
+                }
+            }
+        }
 
         stage('Build and Deploy') {
             steps {
