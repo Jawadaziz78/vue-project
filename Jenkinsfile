@@ -6,9 +6,11 @@ pipeline {
         PROJECT_TYPE  = 'vue'
         DEPLOY_HOST   = '172.31.77.148'
         DEPLOY_USER   = 'ubuntu'
-        // ❌ REMOVED: QUALITY_GATE_STATUS = 'UNKNOWN' (This was locking the variable)
         
-        // Slack Webhook (Uncommented and active)
+        // 1. Initialize Stage Tracker
+        CURRENT_STAGE = 'Initialization' 
+        
+        // Slack Webhook
         SLACK_WEBHOOK = credentials('slack-webhook-url')
     }
     
@@ -16,6 +18,9 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 script {
+                    // 2. Update Tracker
+                    env.CURRENT_STAGE = 'SonarQube Analysis'
+                    
                     withSonarQubeEnv('sonar-server') {
                         sh '''
                             export SONAR_NODE_ARGS='--max-old-space-size=512'      
@@ -31,8 +36,10 @@ pipeline {
         stage('Quality Gate') {
             steps {
                 script {
+                    // 2. Update Tracker
+                    env.CURRENT_STAGE = 'Quality Gate'
+                    
                     timeout(time: 2, unit: 'MINUTES') {
-                        // This will create the variable dynamically now
                         env.QUALITY_GATE_STATUS = waitForQualityGate(abortPipeline: true).status
                     }
                 }
@@ -42,6 +49,9 @@ pipeline {
         stage('Build and Deploy') {
             steps {
                 script {
+                    // 2. Update Tracker
+                    env.CURRENT_STAGE = 'Build and Deploy'
+                    
                     // Safety Check
                     if (env.QUALITY_GATE_STATUS != 'OK') {
                         error "❌ Deployment Prevented: Quality Gate status is ${env.QUALITY_GATE_STATUS}"
@@ -79,9 +89,10 @@ pipeline {
         success {
             script {
                 echo "✅ Pipeline Successful"
+                // Success Notification
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
-                    --data '{"text":"✅ *Deployment Successful for ${PROJECT_TYPE}*\\nBranch: ${env.BRANCH_NAME}"}' \
+                    --data '{"text":"✅ *Deployment Successful*\\n📂 Project: ${PROJECT_TYPE}\\n🌿 Branch: ${env.BRANCH_NAME}\\n🚀 Status: Live"}' \
                     ${SLACK_WEBHOOK}
                 """
             }
@@ -89,9 +100,10 @@ pipeline {
         failure {
             script {
                 echo "❌ Pipeline Failed"
+                // 3. Detailed Failure Notification using CURRENT_STAGE
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
-                    --data '{"text":"❌ *Deployment Failed for ${PROJECT_TYPE}*\\nBranch: ${env.BRANCH_NAME}\\nCheck SonarQube or Jenkins Logs."}' \
+                    --data '{"text":"❌ *Pipeline Failed*\\n📂 Project: ${PROJECT_TYPE}\\n🌿 Branch: ${env.BRANCH_NAME}\\n💥 Failed Stage: *${env.CURRENT_STAGE}*\\n🔍 Action: Check Jenkins Console Logs."}' \
                     ${SLACK_WEBHOOK}
                 """
             }
