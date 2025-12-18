@@ -28,7 +28,7 @@ jobs:
 
             # 2. SONARQUBE ANALYSIS (Full Path + Single Line Fix)
             export SONAR_NODE_ARGS='--max-old-space-size=512'
-            sonar-scanner \
+            /home/ubuntu/sonar-scanner/bin/sonar-scanner \
               -Dsonar.projectKey=${PROJECT_TYPE}-project \
               -Dsonar.sources=. \
               -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
