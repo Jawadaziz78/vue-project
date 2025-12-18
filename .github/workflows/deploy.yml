@@ -2,10 +2,7 @@ name: Deployment Pipeline
 
 on:
   push:
-    branches:
-      - development
-      - stage
-      - test
+    branches: [ "development", "stage", "test" ]
 
 env:
   PROJECT_TYPE: 'vue' # Change this to 'laravel' or 'nextjs' as needed
@@ -23,7 +20,7 @@ jobs:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: PROJECT_TYPE
+          envs: PROJECT_TYPE, GITHUB_REF_NAME
           script: |
             set -e
             BRANCH_NAME=${{ github.ref_name }}
