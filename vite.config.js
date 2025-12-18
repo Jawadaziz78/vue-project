@@ -1,10 +1,10 @@
 import vue from '@vitejs/plugin-vue'
-import { resolve } from 'path'
+import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import { createHtmlPlugin } from 'vite-plugin-html'
 
 export default defineConfig({
-  base: '/vue/test/', // ⭐ IMPORTANT: app lives under /vue/
+  base: '/vue/development/', // ⭐ IMPORTANT: app lives under /vue/
   plugins: [
     vue(),
     createHtmlPlugin({

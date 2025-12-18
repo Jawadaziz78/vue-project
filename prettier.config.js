@@ -1,3 +1,1 @@
-import prettierConfig from '@kouts/eslint-config/prettier'
-
-export default prettierConfig
+export { default } from '@some/package-name'
