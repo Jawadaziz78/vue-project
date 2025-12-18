@@ -5,16 +5,13 @@ on:
     branches: [ "development", "stage", "test" ]
 
 env:
-  PROJECT_TYPE: 'vue' # Change this to 'laravel' or 'nextjs' as needed
+  PROJECT_TYPE: 'vue'
 
 jobs:
-  # ========================================================================
-  # STAGE 1: Build and Deploy (Directly on Server)
-  # ========================================================================
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via SSH
+      - name: Execute Pipeline
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.REMOTE_HOST }}
@@ -23,50 +20,56 @@ jobs:
           envs: PROJECT_TYPE
           script: |
             set -e
-            BRANCH_NAME=${{ github.ref_name }}
             
-            echo "--- 🚀 Deploying $PROJECT_TYPE project on branch $BRANCH_NAME ---"
+            # --- CONFIGURATION ---
+            BRANCH=${{ github.ref_name }}
+            PROJECT_DIR="/var/www/html/$BRANCH/$PROJECT_TYPE-project"
             
-            # Navigate to project folder
-            cd /var/www/html/$BRANCH_NAME/$PROJECT_TYPE-project
-            
-            # Pull latest changes (Using standard git pull as requested)
-            git pull origin $BRANCH_NAME
-            
-            # Run Build Commands based on Project Type
+            # 1. INITIALIZATION
+            cd $PROJECT_DIR
+            git pull origin $BRANCH
+
+            # 2. SONARQUBE ANALYSIS
+            export SONAR_NODE_ARGS='--max-old-space-size=512'
+            /home/ubuntu/sonar-scanner/bin/sonar-scanner \
+              -Dsonar.projectKey=${PROJECT_TYPE}-project \
+              -Dsonar.sources=. \
+              -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
+              -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+
+            # 3. QUALITY GATE (Mimics Jenkins waitForQualityGate)
+            sleep 10
+            for i in {1..24}; do
+              STATUS=$(curl -s -u ${{ secrets.SONAR_TOKEN }}: "${{ secrets.SONAR_HOST_URL }}/api/qualitygates/project_status?projectKey=${PROJECT_TYPE}-project" | jq -r '.projectStatus.status')
+              
+              # Break loop only if we get a definitive result (OK or ERROR)
+              if [ "$STATUS" = "OK" ] || [ "$STATUS" = "ERROR" ]; then break; fi
+              sleep 5
+            done
+
+            # 4. SAFETY CHECK (Stops pipeline if not OK)
+            if [ "$STATUS" != "OK" ]; then exit 1; fi
+
+            # 5. BUILD AND DEPLOY (Only runs if Safety Check passed)
             case "$PROJECT_TYPE" in
-                vue) 
-                    # Dynamically set base path: e.g., /vue/development/
-                    export BASE_URL="/$PROJECT_TYPE/$BRANCH_NAME/"
-                    npm run build 
-                    ;;
-                nextjs) 
-                    npm run build
-                    pm2 restart $PROJECT_TYPE-$BRANCH_NAME 
-                    ;;
-                laravel) 
-                    sudo php artisan optimize 
-                    ;;
+                vue) VITE_BASE_URL="/$PROJECT_TYPE/$BRANCH/" BASE_URL="/$PROJECT_TYPE/$BRANCH/" npm run build ;;
+                nextjs) npm run build && pm2 restart $PROJECT_TYPE-$BRANCH ;;
+                laravel) sudo php artisan optimize ;;
             esac
 
   # ========================================================================
-  # POST ACTIONS: Slack Notifications (COMMENTED OUT FOR NOW)
+  # SLACK NOTIFICATION (Commented Out)
   # ========================================================================
-  # post-actions:
+  # notify:
   #   needs: deploy
   #   if: always()
   #   runs-on: ubuntu-latest
   #   steps:
-  #     - name: Notify Success
-  #       if: needs.deploy.result == 'success'
+  #     - name: Send Slack Notification
   #       run: |
-  #         curl -X POST -H 'Content-type: application/json' \
-  #         --data '{"text":"✅ *Deployment Successful*\\n📂 Project: ${{ env.PROJECT_TYPE }}\\n🌿 Branch: ${{ github.ref_name }}\\n🚀 Status: Live"}' \
-  #         ${{ secrets.SLACK_WEBHOOK }}
-  #
-  #     - name: Notify Failure
-  #       if: needs.deploy.result == 'failure'
-  #       run: |
-  #         curl -X POST -H 'Content-type: application/json' \
-  #         --data '{"text":"❌ *Pipeline Failed*\\n📂 Project: ${{ env.PROJECT_TYPE }}\\n🌿 Branch: ${{ github.ref_name }}\\n💥 Failed Stage: *Build and Deploy*\\n🔍 Action: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Click here to find the error in logs>"}' \
-  #         ${{ secrets.SLACK_WEBHOOK }}
+  #         if [ "${{ needs.deploy.result }}" == "success" ]; then
+  #            TEXT="✅ *Deployment Successful*\n📂 Project: ${{ env.PROJECT_TYPE }}\n🌿 Branch: ${{ github.ref_name }}\n🚀 Status: Live"
+  #         else
+  #            TEXT="❌ *Pipeline Failed*\n📂 Project: ${{ env.PROJECT_TYPE }}\n🌿 Branch: ${{ github.ref_name }}\n💥 Check Logs."
+  #         fi
+  #         curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"$TEXT\"}" ${{ secrets.SLACK_WEBHOOK }}
