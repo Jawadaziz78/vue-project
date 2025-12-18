@@ -20,38 +20,28 @@ jobs:
           envs: PROJECT_TYPE
           script: |
             set -e
-            
-            # --- CONFIGURATION ---
             BRANCH=${{ github.ref_name }}
-            PROJECT_DIR="/var/www/html/$BRANCH/$PROJECT_TYPE-project"
             
             # 1. INITIALIZATION
-            cd $PROJECT_DIR
+            cd /var/www/html/$BRANCH/$PROJECT_TYPE-project
             git pull origin $BRANCH
 
-           
-            export SONAR_NODE_ARGS='--max-old-space-size=512' 
-            SCANNER_BIN=$(find /home/ubuntu -name "sonar-scanner" -type f | head -n 1)
-            $SCANNER_BIN \
-              -Dsonar.projectKey=${PROJECT_TYPE}-project \
-              -Dsonar.sources=. \
-              -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
-              -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+            # 2. SONARQUBE ANALYSIS (Strict Jenkins Logic - Single Line to avoid syntax errors)
+            export SONAR_NODE_ARGS='--max-old-space-size=512'
+            /home/ubuntu/sonar-scanner/bin/sonar-scanner -Dsonar.projectKey=${PROJECT_TYPE}-project -Dsonar.sources=. -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} -Dsonar.login=${{ secrets.SONAR_TOKEN }}
 
-            # 3. QUALITY GATE (Mimics Jenkins waitForQualityGate)
+            # 3. QUALITY GATE (Exact Jenkins Logic)
             sleep 10
             for i in {1..24}; do
               STATUS=$(curl -s -u ${{ secrets.SONAR_TOKEN }}: "${{ secrets.SONAR_HOST_URL }}/api/qualitygates/project_status?projectKey=${PROJECT_TYPE}-project" | jq -r '.projectStatus.status')
-              
-              # Break loop only if we get a definitive result (OK or ERROR)
               if [ "$STATUS" = "OK" ] || [ "$STATUS" = "ERROR" ]; then break; fi
               sleep 5
             done
 
-            # 4. SAFETY CHECK (Stops pipeline if not OK)
+            # 4. SAFETY CHECK (Matches: if (env.QUALITY_GATE_STATUS != 'OK'))
             if [ "$STATUS" != "OK" ]; then exit 1; fi
 
-            # 5. BUILD AND DEPLOY (Only runs if Safety Check passed)
+            # 5. BUILD AND DEPLOY
             case "$PROJECT_TYPE" in
                 vue) VITE_BASE_URL="/$PROJECT_TYPE/$BRANCH/" BASE_URL="/$PROJECT_TYPE/$BRANCH/" npm run build ;;
                 nextjs) npm run build && pm2 restart $PROJECT_TYPE-$BRANCH ;;
