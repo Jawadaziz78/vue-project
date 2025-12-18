@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - development
+      - stage
+      - test
 
 env:
   PROJECT_TYPE: 'vue' # Change this to 'laravel' or 'nextjs' as needed
