@@ -26,15 +26,12 @@ jobs:
             cd /var/www/html/$BRANCH/$PROJECT_TYPE-project
             git pull origin $BRANCH
 
-            # 2. SONARQUBE ANALYSIS (Dynamic Path to avoid "No such file" errors)
+            # 2. SONARQUBE ANALYSIS
+            # Now we can just call the command directly because we added it to /usr/local/bin
             export SONAR_NODE_ARGS='--max-old-space-size=512'
-            
-            # Dynamically find the binary path on the server
-            SCANNER_BIN=$(find /home/ubuntu -name "sonar-scanner" -type f | head -n 1)
-            
-            $SCANNER_BIN -Dsonar.projectKey=${PROJECT_TYPE}-project -Dsonar.sources=. -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+            sonar-scanner -Dsonar.projectKey=${PROJECT_TYPE}-project -Dsonar.sources=. -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} -Dsonar.login=${{ secrets.SONAR_TOKEN }}
 
-            # 3. QUALITY GATE (Exact Jenkins Logic)
+            # 3. QUALITY GATE
             sleep 10
             for i in {1..24}; do
               STATUS=$(curl -s -u ${{ secrets.SONAR_TOKEN }}: "${{ secrets.SONAR_HOST_URL }}/api/qualitygates/project_status?projectKey=${PROJECT_TYPE}-project" | jq -r '.projectStatus.status')
@@ -42,7 +39,7 @@ jobs:
               sleep 5
             done
 
-            # 4. SAFETY CHECK (Stops pipeline if not OK)
+            # 4. SAFETY CHECK
             if [ "$STATUS" != "OK" ]; then exit 1; fi
 
             # 5. BUILD AND DEPLOY
