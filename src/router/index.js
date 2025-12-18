@@ -14,7 +14,7 @@ const routes = [
     component: () => import('../views/About.vue'),
     meta: { layout: 'default' },
   },
-  // CRITICAL FIX: Redirects unknown paths to Home so the page isn't blank
+  // Catch-all to fix blank page issues
   {
     path: '/:pathMatch(.*)*',
     redirect: '/',
@@ -22,11 +22,11 @@ const routes = [
 ]
 
 const router = createRouter({
-  // Dynamically uses the Base URL from your .env file
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
   linkActiveClass: 'active',
 })
 
+// EXPORT BOTH WAYS (Fixes the build error)
 export { router }
 export default router
