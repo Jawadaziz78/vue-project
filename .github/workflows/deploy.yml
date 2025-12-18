@@ -6,7 +6,7 @@ on:
       - development
 
 env:
-  PROJECT_TYPE: 'vue'
+  PROJECT_TYPE: 'vue' # Change this to 'laravel' or 'nextjs' as needed
 
 jobs:
   # ========================================================================
@@ -34,7 +34,7 @@ jobs:
             # Pull latest changes
             git pull origin $BRANCH_NAME
             
-            # Run Build Commands based on Project Type (Removed npm install)
+            # Run Build Commands based on Project Type
             case "$PROJECT_TYPE" in
                 vue) 
                     npm run build 
@@ -49,23 +49,23 @@ jobs:
             esac
 
   # ========================================================================
-  # POST ACTIONS: Slack Notifications (Runs at the END)
+  # POST ACTIONS: Slack Notifications (COMMENTED OUT FOR NOW)
   # ========================================================================
-  post-actions:
-    needs: deploy
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify Success
-        if: needs.deploy.result == 'success'
-        run: |
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"✅ *Deployment Successful*\\n📂 Project: ${{ env.PROJECT_TYPE }}\\n🌿 Branch: ${{ github.ref_name }}\\n🚀 Status: Live"}' \
-          ${{ secrets.SLACK_WEBHOOK }}
-
-      - name: Notify Failure
-        if: needs.deploy.result == 'failure'
-        run: |
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"❌ *Pipeline Failed*\\n📂 Project: ${{ env.PROJECT_TYPE }}\\n🌿 Branch: ${{ github.ref_name }}\\n💥 Failed Stage: *Build and Deploy*\\n🔍 Action: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Click here to find the error in logs>"}' \
-          ${{ secrets.SLACK_WEBHOOK }}
+  # post-actions:
+  #   needs: deploy
+  #   if: always()
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Notify Success
+  #       if: needs.deploy.result == 'success'
+  #       run: |
+  #         curl -X POST -H 'Content-type: application/json' \
+  #         --data '{"text":"✅ *Deployment Successful*\\n📂 Project: ${{ env.PROJECT_TYPE }}\\n🌿 Branch: ${{ github.ref_name }}\\n🚀 Status: Live"}' \
+  #         ${{ secrets.SLACK_WEBHOOK }}
+  #
+  #     - name: Notify Failure
+  #       if: needs.deploy.result == 'failure'
+  #       run: |
+  #         curl -X POST -H 'Content-type: application/json' \
+  #         --data '{"text":"❌ *Pipeline Failed*\\n📂 Project: ${{ env.PROJECT_TYPE }}\\n🌿 Branch: ${{ github.ref_name }}\\n💥 Failed Stage: *Build and Deploy*\\n🔍 Action: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Click here to find the error in logs>"}' \
+  #         ${{ secrets.SLACK_WEBHOOK }}
