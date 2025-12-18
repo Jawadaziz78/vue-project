@@ -29,9 +29,10 @@ jobs:
             cd $PROJECT_DIR
             git pull origin $BRANCH
 
-            # 2. SONARQUBE ANALYSIS
-            export SONAR_NODE_ARGS='--max-old-space-size=512'
-            /home/ubuntu/sonar-scanner/bin/sonar-scanner \
+           
+            export SONAR_NODE_ARGS='--max-old-space-size=512' 
+            SCANNER_BIN=$(find /home/ubuntu -name "sonar-scanner" -type f | head -n 1)
+            $SCANNER_BIN \
               -Dsonar.projectKey=${PROJECT_TYPE}-project \
               -Dsonar.sources=. \
               -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
