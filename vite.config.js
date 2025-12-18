@@ -1,56 +1,37 @@
+import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
-import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import { createHtmlPlugin } from 'vite-plugin-html'
 
-// Convert to a function to enable dynamic logic
-export default defineConfig(({ mode }) => {
-  // Determine base path based on environment variable or default to development
-  const base_path = process.env.BASE_URL || '/vue/development/';
-
-  return {
-    // Dynamic base path applied here
-    base: base_path, 
-    
-    plugins: [
-      vue(),
-      createHtmlPlugin({
-        minify: true,
-        inject: {
-          data: {
-            title: 'ProjectName',
-            description: 'A single page application created using Vue.js 3',
-          },
-        },
-      }),
-    ],
-    
-    resolve: {
-      alias: {
-        '@': resolve(__dirname, 'src'),
-        '~bootstrap': 'bootstrap',
-      },
-    },
-    
-    css: {
-      preprocessorOptions: {
-        scss: {
-          additionalData: `@use "@/scss/variables" as *;`,
-          // Silence deprecations for cleaner build logs
-          silenceDeprecations: ['color-functions', 'global-builtin', 'import'],
+export default defineConfig({
+  base: '/vue/test/',
+  plugins: [
+    vue(),
+    // 1. FIX HTML ERROR: Handles <%- title %> tags
+    createHtmlPlugin({
+      minify: true,
+      inject: {
+        data: {
+          title: 'ProjectName',
+          description: 'A single page application created using Vue.js 3',
         },
       },
+    }),
+  ],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '~bootstrap': 'bootstrap',
     },
-    
-    test: {
-      globals: true,
-      globalSetup: './tests/vitest.global-setup.js',
-      setupFiles: ['./tests/vitest.globals.js'],
-      environment: 'jsdom',
-      reporters: ['default'],
-      coverage: {
-        reporter: ['text', 'json'],
+  },
+  css: {
+    preprocessorOptions: {
+      scss: {
+        // 2. FIX CSS ERROR: Globally injects variables so $gray-100 works everywhere
+        additionalData: `@use "@/scss/variables.scss" as *;`,
+        // Silences the annoying warnings
+        silenceDeprecations: ['import', 'global-builtin', 'color-functions'],
       },
     },
-  }
+  },
 })
