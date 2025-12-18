@@ -20,22 +20,24 @@ jobs:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: PROJECT_TYPE, GITHUB_REF_NAME
+          envs: PROJECT_TYPE
           script: |
             set -e
             BRANCH_NAME=${{ github.ref_name }}
             
-            echo "--- 🚀 Deploying $PROJECT_TYPE project ---"
+            echo "--- 🚀 Deploying $PROJECT_TYPE project on branch $BRANCH_NAME ---"
             
             # Navigate to project folder
             cd /var/www/html/$BRANCH_NAME/$PROJECT_TYPE-project
             
-            # Pull latest changes
+            # Pull latest changes (Using standard git pull as requested)
             git pull origin $BRANCH_NAME
             
             # Run Build Commands based on Project Type
             case "$PROJECT_TYPE" in
                 vue) 
+                    # Dynamically set base path: e.g., /vue/development/
+                    export BASE_URL="/$PROJECT_TYPE/$BRANCH_NAME/"
                     npm run build 
                     ;;
                 nextjs) 
