@@ -26,12 +26,11 @@ jobs:
             cd /var/www/html/$BRANCH/$PROJECT_TYPE-project
             git pull origin $BRANCH
 
-            # 2. SONARQUBE ANALYSIS
-            # Now we can just call the command directly because we added it to /usr/local/bin
+            # 2. SONARQUBE ANALYSIS (Full Path + Single Line Fix)
             export SONAR_NODE_ARGS='--max-old-space-size=512'
-            sonar-scanner -Dsonar.projectKey=${PROJECT_TYPE}-project -Dsonar.sources=. -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+            /home/ubuntu/sonar-scanner/bin/sonar-scanner -Dsonar.projectKey=${PROJECT_TYPE}-project -Dsonar.sources=. -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} -Dsonar.login=${{ secrets.SONAR_TOKEN }}
 
-            # 3. QUALITY GATE
+            # 3. QUALITY GATE (Exact Jenkins Logic)
             sleep 10
             for i in {1..24}; do
               STATUS=$(curl -s -u ${{ secrets.SONAR_TOKEN }}: "${{ secrets.SONAR_HOST_URL }}/api/qualitygates/project_status?projectKey=${PROJECT_TYPE}-project" | jq -r '.projectStatus.status')
@@ -48,7 +47,6 @@ jobs:
                 nextjs) npm run build && pm2 restart $PROJECT_TYPE-$BRANCH ;;
                 laravel) sudo php artisan optimize ;;
             esac
-
   # ========================================================================
   # SLACK NOTIFICATION (Commented Out)
   # ========================================================================
