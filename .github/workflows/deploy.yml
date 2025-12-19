@@ -11,7 +11,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Execute Pipeline
+      - name: Deployment
+        id: sonar
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.REMOTE_HOST }}
@@ -26,40 +27,49 @@ jobs:
             cd /var/www/html/$BRANCH/$PROJECT_TYPE-project
             git pull origin $BRANCH
 
-            # 2. SONARQUBE ANALYSIS (Full Path + Single Line Fix)
+            # 2. SONARQUBE ANALYSIS
             export SONAR_NODE_ARGS='--max-old-space-size=512'
-            /home/ubuntu/sonar-scanner/bin/sonar-scanner -Dsonar.projectKey=${PROJECT_TYPE}-project -Dsonar.sources=. -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+            /home/ubuntu/sonar-scanner/bin/sonar-scanner \
+              -Dsonar.projectKey=${PROJECT_TYPE}-project \
+              -Dsonar.sources=. \
+              -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
+              -Dsonar.login=${{ secrets.SONAR_TOKEN }}
 
-            # 3. QUALITY GATE (Exact Jenkins Logic)
-            sleep 10
+            # 3. QUALITY GATE CHECK
             for i in {1..24}; do
               STATUS=$(curl -s -u ${{ secrets.SONAR_TOKEN }}: "${{ secrets.SONAR_HOST_URL }}/api/qualitygates/project_status?projectKey=${PROJECT_TYPE}-project" | jq -r '.projectStatus.status')
               if [ "$STATUS" = "OK" ] || [ "$STATUS" = "ERROR" ]; then break; fi
-              sleep 5
             done
 
-            # 4. SAFETY CHECK (Matches Jenkins: abortPipeline: true)
-            if [ "$STATUS" != "OK" ]; then exit 1; fi
+            if [ "$STATUS" != "OK" ]; then 
+              exit 1 
+            fi
 
-            # 5. BUILD AND DEPLOY
+            # 4. PROJECT SPECIFIC BUILD
             case "$PROJECT_TYPE" in
-                vue) VITE_BASE_URL="/$PROJECT_TYPE/$BRANCH/" BASE_URL="/$PROJECT_TYPE/$BRANCH/" npm run build ;;
-                nextjs) npm run build && pm2 restart $PROJECT_TYPE-$BRANCH ;;
-                laravel) sudo php artisan optimize ;;
+                vue) 
+                  VITE_BASE_URL="/$PROJECT_TYPE/$BRANCH/" 
+                  npm run build 
+                  ;;
+                nextjs) 
+                  npm run build 
+                  pm2 restart $PROJECT_TYPE-$BRANCH 
+                  ;;
+                laravel) 
+                  sudo php artisan optimize
+                  ;;
             esac
-  # ========================================================================
-  # SLACK NOTIFICATION (Commented Out)
-  # ========================================================================
-  # notify:
-  #   needs: deploy
-  #   if: always()
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Send Slack Notification
-  #       run: |
-  #         if [ "${{ needs.deploy.result }}" == "success" ]; then
-  #            TEXT="✅ *Deployment Successful*\n📂 Project: ${{ env.PROJECT_TYPE }}\n🌿 Branch: ${{ github.ref_name }}\n🚀 Status: Live"
-  #         else
-  #            TEXT="❌ *Pipeline Failed*\n📂 Project: ${{ env.PROJECT_TYPE }}\n🌿 Branch: ${{ github.ref_name }}\n💥 Check Logs."
-  #         fi
-  #         curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"$TEXT\"}" ${{ secrets.SLACK_WEBHOOK }}
+
+      - name: Notify
+        if: always()
+        run: |
+          STATUS="${{ job.status == 'success' && 'SUCCESS' || 'FAILED' }}"
+          if [[ "${{ job.status }}" == "success" ]]; then
+            MSG="Deployment successful! "
+          else
+            [[ "${{ steps.sonar.outcome }}" == "failure" ]] && ERR="Quality Gate" || ERR="Build/Deploy"
+            MSG="Failed at: $ERR step "
+          fi
+          curl -X POST -H 'Content-type: application/json' \
+          --data "{\"text\":\"*[$STATUS]* \n*Project:* ${{ env.PROJECT_TYPE }} \n*Branch:* ${{ github.ref_name }} \n*Status:* $MSG\"}" \
+          "${{ secrets.SLACK_WEBHOOK }}"
