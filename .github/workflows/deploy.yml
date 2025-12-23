@@ -77,28 +77,29 @@ jobs:
             esac
             echo "✅ Deployment Successfully Completed."
 
-            # - name: Notify
-      #   if: always()
-      #   run: |
-      #     # 1. Capture metadata
-      #     GATE_STATUS="${{ steps.sonarqube-quality-gate.outputs.quality-gate-status }}"
-      #     BRANCH="${{ github.ref_name }}"
-      #     PROJECT="${{ env.PROJECT_TYPE }}"
-      #
-      #     # 2. Determine the status and detail message
-      #     if [[ "${{ job.status }}" == "success" ]]; then
-      #       STATUS_EMOJI="PASSED ✅"
-      #       DETAIL="Deployment Successful for $BRANCH!"
-      #     else
-      #       if [[ "$GATE_STATUS" == "FAILED" || "$GATE_STATUS" == "ERROR" ]]; then
-      #         STATUS_EMOJI="FAILED ❌"
-      #         DETAIL="Deployment for $BRANCH is BLOCKED. Quality Gate on test branch failed (Duplication > 50%)."
-      #       else
-      #         STATUS_EMOJI="FAILED ❌"
-      #         DETAIL="Deployment for $BRANCH failed during the Build/Deploy step."
-      #       fi
-      #     fi
-      #
-      #     # 3. Send the Slack notification
-      #     PAYLOAD="{\"text\":\"*Project:* $PROJECT\n*Branch:* $BRANCH\n*Sonar Status:* $STATUS_EMOJI\n*Detail:* $DETAIL\"}"
-      #     curl -X POST -H 'Content-type: application/json' --data "$PAYLOAD" "${{ secrets.SLACK_WEBHOOK }}"
+      - name: Notify
+        if: always()
+        run: |
+          # 1. Capture metadata
+          GATE_STATUS="${{ steps.sonarqube-quality-gate.outputs.quality-gate-status }}"
+          BRANCH="${{ github.ref_name }}"
+          PROJECT="${{ env.PROJECT_TYPE }}"
+
+          # 2. Determine the status and detail message
+          if [[ "${{ job.status }}" == "success" ]]; then
+            STATUS_EMOJI="PASSED ✅"
+            DETAIL="Deployment Successful for $BRANCH!"
+          else
+            if [[ "$GATE_STATUS" == "FAILED" || "$GATE_STATUS" == "ERROR" ]]; then
+              STATUS_EMOJI="FAILED ❌"
+              DETAIL="Deployment for $BRANCH is BLOCKED. Quality Gate on test branch failed (Duplication > 50%)."
+            else
+              STATUS_EMOJI="FAILED ❌"
+              DETAIL="Deployment for $BRANCH failed during the Build/Deploy step."
+            fi
+          fi
+
+          # 3. Send the Slack notification
+          PAYLOAD="{\"text\":\"*Project:* $PROJECT\n*Branch:* $BRANCH\n*Sonar Status:* $STATUS_EMOJI\n*Detail:* $DETAIL\"}"
+          curl -X POST -H 'Content-type: application/json' --data "$PAYLOAD" "${{ secrets.SLACK_WEBHOOK }}"
+
