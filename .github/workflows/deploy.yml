@@ -23,8 +23,8 @@ jobs:
         with:
           args: >
             -Dsonar.projectKey=${{ env.PROJECT_TYPE }}-project
-            -Dsonar.sources=app
-            -Dsonar.inclusions=**/*.php
+            -Dsonar.sources=src
+            -Dsonar.inclusions=**/*.vue,**/*.js,**/*.ts
 
       - name: SonarQube Quality Gate Check
         id: sonarqube-quality-gate
