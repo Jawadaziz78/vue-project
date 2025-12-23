@@ -1,9 +1,7 @@
 name: Deployment Pipeline
-
 on:
   push:
     branches: [ "development", "stage", "test" ]
-
 env:
   PROJECT_TYPE: 'vue'
 
@@ -11,8 +9,42 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deployment
-        id: sonar
+      - name: Checkout Test Branch
+        uses: actions/checkout@v4
+        with:
+          ref: test
+          fetch-depth: 0
+
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ env.PROJECT_TYPE }}-project
+            -Dsonar.sources=app
+            -Dsonar.inclusions=**/*.php
+
+      - name: SonarQube Quality Gate Check
+        id: sonarqube-quality-gate
+        uses: sonarsource/sonarqube-quality-gate-action@v1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Gatekeeper Decision
+        run: |
+          STATUS="${{ steps.sonarqube-quality-gate.outputs.quality-gate-status }}"
+          echo "Current Quality Gate Status: $STATUS"
+          if [[ "$STATUS" == "PASSED" ]]; then
+            echo "Quality Gate PASSED. Proceeding to deployment..."
+          else
+            echo "BLOCKING DEPLOYMENT: Quality Gate status is '$STATUS'. Exiting workflow."
+            exit 1
+          fi
+
+      - name: Build and Deploy
+        if: steps.sonarqube-quality-gate.outputs.quality-gate-status == 'PASSED'
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.REMOTE_HOST }}
@@ -22,54 +54,51 @@ jobs:
           script: |
             set -e
             BRANCH=${{ github.ref_name }}
-            
-            # 1. INITIALIZATION
-            cd /var/www/html/$BRANCH/$PROJECT_TYPE-project
+            DEPLOY_PATH="/var/www/html/$BRANCH/$PROJECT_TYPE-project"
+
+            echo "🚀 Quality Gate PASSED. Starting Deployment for $BRANCH..."
+            cd $DEPLOY_PATH
+            echo "Pulling latest code..."
             git pull origin $BRANCH
 
-            # 2. SONARQUBE ANALYSIS
-            export SONAR_NODE_ARGS='--max-old-space-size=512'
-            /home/ubuntu/sonar-scanner/bin/sonar-scanner \
-              -Dsonar.projectKey=${PROJECT_TYPE}-project \
-              -Dsonar.sources=. \
-              -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
-              -Dsonar.login=${{ secrets.SONAR_TOKEN }}
-
-            # 3. QUALITY GATE CHECK
-            for i in {1..24}; do
-              STATUS=$(curl -s -u ${{ secrets.SONAR_TOKEN }}: "${{ secrets.SONAR_HOST_URL }}/api/qualitygates/project_status?projectKey=${PROJECT_TYPE}-project" | jq -r '.projectStatus.status')
-              if [ "$STATUS" = "OK" ] || [ "$STATUS" = "ERROR" ]; then break; fi
-            done
-
-            if [ "$STATUS" != "OK" ]; then 
-              exit 1 
-            fi
-
-            # 4. PROJECT SPECIFIC BUILD
+            echo "Building project..."
             case "$PROJECT_TYPE" in
-                vue) 
-                  VITE_BASE_URL="/$PROJECT_TYPE/$BRANCH/" 
-                  npm run build 
+                vue)
+                  VITE_BASE_URL="/$PROJECT_TYPE/$BRANCH/"
+                  npm run build
                   ;;
-                nextjs) 
-                  npm run build 
-                  pm2 restart $PROJECT_TYPE-$BRANCH 
+                nextjs)
+                  npm run build
+                  pm2 restart $PROJECT_TYPE-$BRANCH
                   ;;
-                laravel) 
+                laravel)
                   sudo php artisan optimize
                   ;;
             esac
+            echo "✅ Deployment Successfully Completed."
 
       - name: Notify
         if: always()
         run: |
-          STATUS="${{ job.status == 'success' && 'SUCCESS' || 'FAILED' }}"
+          # 1. Capture metadata
+          GATE_STATUS="${{ steps.sonarqube-quality-gate.outputs.quality-gate-status }}"
+          BRANCH="${{ github.ref_name }}"
+          PROJECT="${{ env.PROJECT_TYPE }}"
+
+          # 2. Determine the status and detail message
           if [[ "${{ job.status }}" == "success" ]]; then
-            MSG="Deployment successful! "
+            STATUS_EMOJI="PASSED ✅"
+            DETAIL="Deployment Successful for $BRANCH!"
           else
-            [[ "${{ steps.sonar.outcome }}" == "failure" ]] && ERR="Quality Gate" || ERR="Build/Deploy"
-            MSG="Failed at: $ERR step "
+            if [[ "$GATE_STATUS" == "FAILED" || "$GATE_STATUS" == "ERROR" ]]; then
+              STATUS_EMOJI="FAILED ❌"
+              DETAIL="Deployment for $BRANCH is BLOCKED. Quality Gate on test branch failed (Duplication > 50%)."
+            else
+              STATUS_EMOJI="FAILED ❌"
+              DETAIL="Deployment for $BRANCH failed during the Build/Deploy step."
+            fi
           fi
-          curl -X POST -H 'Content-type: application/json' \
-          --data "{\"text\":\"*[$STATUS]* \n*Project:* ${{ env.PROJECT_TYPE }} \n*Branch:* ${{ github.ref_name }} \n*Status:* $MSG\"}" \
-          "${{ secrets.SLACK_WEBHOOK }}"
+
+          # 3. Send the Slack notification
+          PAYLOAD="{\"text\":\"*Project:* $PROJECT\n*Branch:* $BRANCH\n*Sonar Status:* $STATUS_EMOJI\n*Detail:* $DETAIL\"}"
+          curl -X POST -H 'Content-type: application/json' --data "$PAYLOAD" "${{ secrets.SLACK_WEBHOOK }}"
