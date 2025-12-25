@@ -7,14 +7,13 @@ pipeline {
     triggers { githubPush() }
     
     environment {
-        PROJECT_TYPE  = 'vue' // Set to 'vue', 'nextjs', or 'laravel'
+        PROJECT_TYPE  = 'vue' // Change to 'nextjs' or 'laravel' as needed
         DEPLOY_HOST   = 'localhost'
         DEPLOY_USER   = 'ubuntu'
+        GIT_CREDS     = credentials('github-https-creds') 
         
         // --- Slack Webhook (COMMENTED OUT) ---
         // SLACK_WEBHOOK = credentials('slack-webhook-url')
-        
-        GIT_CREDS     = credentials('github-https-creds') 
     }
     
     stages {
@@ -25,7 +24,7 @@ pipeline {
                     currentStage = STAGE_NAME 
                     withSonarQubeEnv('sonar-server') {
                         sh '''
-                            export SONAR_NODE_ARGS='--max-old-space-size=2048'      
+                            export SONAR_NODE_ARGS='--max-old-space-size=512'      
                             /home/ubuntu/sonar-scanner/bin/sonar-scanner \
                                -Dsonar.projectKey=${PROJECT_TYPE}-project \
                                -Dsonar.sources=app \
@@ -41,7 +40,7 @@ pipeline {
             steps {
                 script {
                     currentStage = STAGE_NAME
-                    timeout(time: 3, unit: 'MINUTES') {
+                    timeout(time: 2, unit: 'MINUTES') {
                         def qg = waitForQualityGate(abortPipeline: true)
                         qgStatus = qg.status
                         if (qgStatus != 'OK') {
@@ -64,27 +63,26 @@ pipeline {
                 script { currentStage = STAGE_NAME }
                 
                 sshagent(['deploy-server-key']) {
-                    // FIX: Triple quotes ensure variables like ${WORKSPACE} expand correctly
+                    // THE CRITICAL FIX: Move the redirection OUTSIDE of the double-quoted SSH command
+                    // This streams the LOCAL Jenkins file into the REMOTE bash session
                     sh """
+                        ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "bash -s -- ${BRANCH_NAME} ${PROJECT_TYPE} ${GIT_CREDS_USR} ${GIT_CREDS_PSW}" < ${WORKSPACE}/deploy.sh
+                        
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                             set -e
                             
-                            # 1. Run the external script for Prep & Cleanup
-                            # Streams local workspace script to remote bash
-                            bash -s < ${WORKSPACE}/deploy.sh ${BRANCH_NAME} ${PROJECT_TYPE} ${GIT_CREDS_USR} ${GIT_CREDS_PSW}
-
-                            # 2. Manual Build Steps (Kept in Jenkinsfile as requested)
+                            # 2. Your Required Manual Steps
                             cd /var/www/html/${BRANCH_NAME}/${PROJECT_TYPE}-project
                             
                             echo 'Pulling latest code from ${BRANCH_NAME}...'
                             git pull origin ${BRANCH_NAME}
                             
                             echo 'Building project...'
-                            case \"${PROJECT_TYPE}\" in
+                            case \\"${PROJECT_TYPE}\\" in
                                 vue) 
-                                    VITE_BASE_URL=\"/vue/${BRANCH_NAME}/\" npm run build ;;
+                                    VITE_BASE_URL=\\"/vue/${BRANCH_NAME}/\\" npm run build ;;
                                 nextjs) 
-                                    VITE_BASE_URL=\"/vue/${BRANCH_NAME}/\" npm run build
+                                    VITE_BASE_URL=\\"/vue/${BRANCH_NAME}/\\" npm run build
                                     pm2 restart ${PROJECT_TYPE}-${BRANCH_NAME} ;;
                                 laravel) 
                                     sudo php artisan optimize ;;
@@ -96,7 +94,7 @@ pipeline {
                 }
             }
         } 
-    }
+    } 
     
     post {
         always {
@@ -113,6 +111,8 @@ pipeline {
                 } else {
                     resultMsg = (jobResult == 'SUCCESS') ? "Deployment DONE for ${env.BRANCH_NAME} successfully" : "Deployment FAILED for ${env.BRANCH_NAME} at stage: ${currentStage}"
                 }
+
+                echo "Deployment Result: ${resultMsg}"
 
                 // --- Slack Notification (COMMENTED OUT) ---
                 /*
