@@ -14,6 +14,8 @@ pipeline {
         
         // Tracking current stage for notifications
         CURRENT_STAGE = 'Initialization' 
+        
+        // SLACK_WEBHOOK = credentials('slack-webhook-url') // Uncomment when ready to use Slack
     }
     
     stages {
@@ -41,7 +43,8 @@ pipeline {
             steps {
                 script {
                     env.CURRENT_STAGE = 'Quality Gate'
-                    timeout(time: 2, unit: 'MINUTES') {
+                    // Updated Quality Gate timeout to exactly 2 minutes
+                    timeout(time: 2, unit: 'MINUTES') { 
                         // Aborts if Quality Gate is not 'OK'
                         env.QUALITY_GATE_STATUS = waitForQualityGate(abortPipeline: true).status
                     }
@@ -70,18 +73,20 @@ pipeline {
                             set -e
                             echo '--- 🚀 Starting Deployment for ${BRANCH_NAME} ---'
                             
-                            # 1. Self-Cleaning Code Sync
+                            # 1. Self-Healing Code Sync
                             if [ ! -d \\"${LIVE_DIR}/.git\\" ]; then
-                                sudo mkdir -p /var/www/html/${BRANCH_NAME}
-                                sudo git clone -b ${BRANCH_NAME} https://${GIT_CREDS_USR}:${GIT_CREDS_PSW}@github.com/Jawadaziz78/vue-project.git ${LIVE_DIR}
+                                echo '⚠️ Directory exists but is not a git repo. Cleaning up...'
+                                sudo rm -rf \\"${LIVE_DIR}\\"
+                                sudo mkdir -p \\$(dirname \\"${LIVE_DIR}\\")
+                                sudo git clone -b ${BRANCH_NAME} https://${GIT_CREDS_USR}:${GIT_CREDS_PSW}@github.com/Jawadaziz78/vue-project.git \\"${LIVE_DIR}\\"
                             else
-                                cd ${LIVE_DIR}
+                                cd \\"${LIVE_DIR}\\"
                                 # Cleans local modifications to prevent merge conflicts
                                 sudo git checkout . 
                                 sudo git pull origin ${BRANCH_NAME}
                             fi
 
-                            cd ${LIVE_DIR}
+                            cd \\"${LIVE_DIR}\\"
 
                             # 2. Automated pnpm Setup
                             if ! command -v pnpm &> /dev/null; then
@@ -143,17 +148,20 @@ pipeline {
             }
         } 
     }
+    
     post {
         success {
             script {
                 echo "✅ Pipeline Successful"
-                /* sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"✅ Deployment Successful\"}' ${SLACK_WEBHOOK}" */
+                // Uncomment below line to enable Slack notifications
+                // sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"✅ Deployment Successful\"}' ${SLACK_WEBHOOK}"
             }
         }
         failure {
             script {
                 echo "❌ Pipeline Failed"
-                /* sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"❌ Failed at: ${env.CURRENT_STAGE}\"}' ${SLACK_WEBHOOK}" */
+                // Uncomment below line to enable Slack notifications
+                // sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"❌ Failed at: ${env.CURRENT_STAGE}\"}' ${SLACK_WEBHOOK}"
             }
         }
     }
