@@ -1,35 +1,32 @@
+// Global variables to track status
+def currentStage = 'Initialization'
+def qgStatus = 'NOT_RUN' 
+
 pipeline {
     agent any
-    
-    // Automatically triggers build when code is pushed to GitHub
     triggers { githubPush() }
     
     environment {
-        PROJECT_TYPE  = 'vue' // Change to 'nextjs' or 'laravel' as needed per project
-        DEPLOY_HOST   = 'localhost'
+        PROJECT_TYPE  = 'laravel' // Change to 'vue' or 'nextjs' as needed
+        DEPLOY_HOST   = '172.31.77.148'
         DEPLOY_USER   = 'ubuntu'
-        
-        // GitHub Credentials for automated cloning
+        SLACK_WEBHOOK = credentials('slack-webhook-url')
         GIT_CREDS     = credentials('github-https-creds') 
-        
-        // Tracking current stage for notifications
-        CURRENT_STAGE = 'Initialization' 
     }
     
     stages {
         stage('SonarQube Analysis') {
-            // SonarQube runs only on the test branch to match your GHA workflow
             when { branch 'test' }
             steps {
                 script {
-                    env.CURRENT_STAGE = 'SonarQube Analysis'
+                    currentStage = STAGE_NAME 
                     withSonarQubeEnv('sonar-server') {
                         sh '''
-                            export SONAR_NODE_ARGS='--max-old-space-size=512'      
+                            export SONAR_NODE_ARGS='--max-old-space-size=2048'      
                             /home/ubuntu/sonar-scanner/bin/sonar-scanner \
-                                -Dsonar.projectKey=${PROJECT_TYPE}-project \
-                                -Dsonar.sources=src \
-                                -Dsonar.inclusions=**/*.vue,**/*.js,**/*.ts
+                               -Dsonar.projectKey=${PROJECT_TYPE}-project \
+                               -Dsonar.sources=app \
+                               -Dsonar.inclusions=**/*.php
                         '''
                     }
                 }
@@ -40,120 +37,85 @@ pipeline {
             when { branch 'test' }
             steps {
                 script {
-                    env.CURRENT_STAGE = 'Quality Gate'
-                    timeout(time: 2, unit: 'MINUTES') {
-                        // Aborts if Quality Gate is not 'OK'
-                        env.QUALITY_GATE_STATUS = waitForQualityGate(abortPipeline: true).status
+                    currentStage = STAGE_NAME
+                    timeout(time: 3, unit: 'MINUTES') {
+                        def qg = waitForQualityGate(abortPipeline: true)
+                        qgStatus = qg.status
+                        if (qgStatus != 'OK') {
+                            error "BLOCKING DEPLOYMENT: Quality Gate status is '${qgStatus}'."
+                        }
                     }
                 }
             }
         }
 
         stage('Build and Deploy') {
-            steps {
-                script {
-                    env.CURRENT_STAGE = 'Build and Deploy'
-                    
-                    // Safety: Skip Quality Gate check for development and stage branches
-                    if (env.BRANCH_NAME == 'test') {
-                        if (env.QUALITY_GATE_STATUS != 'OK') {
-                            error "❌ BLOCKING DEPLOYMENT: Quality Gate status is '${env.QUALITY_GATE_STATUS}'"
-                        }
-                    }
-
-                    env.LIVE_DIR = "/var/www/html/${env.BRANCH_NAME}/${env.PROJECT_TYPE}-project"
+            when {
+                anyOf {
+                    branch 'test'
+                    branch 'development'
+                    branch 'stage'
                 }
+            }
+            steps {
+                script { currentStage = STAGE_NAME }
                 
                 sshagent(['deploy-server-key']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                             set -e
-                            echo '--- 🚀 Starting Deployment for ${BRANCH_NAME} ---'
                             
-                            # 1. Self-Cleaning Code Sync
-                            if [ ! -d \\"${LIVE_DIR}/.git\\" ]; then
-                                sudo mkdir -p /var/www/html/${BRANCH_NAME}
-                                sudo git clone -b ${BRANCH_NAME} https://${GIT_CREDS_USR}:${GIT_CREDS_PSW}@github.com/Jawadaziz78/vue-project.git ${LIVE_DIR}
-                            else
-                                cd ${LIVE_DIR}
-                                # Cleans local modifications to prevent merge conflicts
-                                sudo git checkout . 
-                                sudo git pull origin ${BRANCH_NAME}
-                            fi
+                            # 1. Run the external script for Prep & Cleanup
+                            # We pipe the local deploy.sh to the server bash
+                            bash -s < ./deploy.sh ${BRANCH_NAME} ${PROJECT_TYPE} ${GIT_CREDS_USR} ${GIT_CREDS_PSW}
 
-                            cd ${LIVE_DIR}
-
-                            # 2. Automated pnpm Setup
-                            if ! command -v pnpm &> /dev/null; then
-                                sudo npm install -g pnpm
-                            fi
-
-                            # 3. Security Bypass & Ownership Fix
-                            echo '🧹 Deep cleaning node_modules and fixing ownership...'
-                            sudo rm -rf node_modules
-                            sudo chown -R ubuntu:ubuntu .
-
-                            # Disable scripts to prevent pnpm v10 EACCES crash during install
-                            pnpm config set ignore-scripts true
+                            # 2. Your Required Manual Steps
+                            cd /var/www/html/${BRANCH_NAME}/${PROJECT_TYPE}-project
                             
-                            echo '📦 Installing dependencies...'
-                            if [ \\"${PROJECT_TYPE}\\" = \\"laravel\\" ]; then
-                                composer install --no-interaction --prefer-dist --optimize-autoloader
-                            else
-                                pnpm install
-                                
-                                # 4. Grant execution rights to hidden binaries
-                                echo '🔓 Granting binary execution rights...'
-                                sudo find node_modules/.pnpm -name \\"esbuild\\" -exec chmod +x {} +
-                                sudo chmod -R +x node_modules/.bin
-                                
-                                # Restore scripts and rebuild native modules
-                                pnpm config set ignore-scripts false
-                                pnpm rebuild esbuild
-                            fi
-
-                            # 5. Dynamic .env Generation & Build
-                            # This ensures the correct subfolder routing for each branch
-                            echo '🏗️ Building ${PROJECT_TYPE} project...'
-                            echo \\"VITE_BASE_URL=/vue/${BRANCH_NAME}/\\" > .env
+                            echo 'Pulling latest code from ${BRANCH_NAME}...'
+                            git pull origin ${BRANCH_NAME}
                             
-                            case \\"${PROJECT_TYPE}\\" in
-                                vue)
-                                    VITE_BASE_URL=\\"/vue/${BRANCH_NAME}/\\" pnpm run build ;;
-                                nextjs)
-                                    pnpm run build
-                                    pm2 restart ${PROJECT_TYPE}-${BRANCH_NAME} || pm2 start pnpm --name ${PROJECT_TYPE}-${BRANCH_NAME} -- start ;;
-                                laravel)
-                                    php artisan migrate --force
-                                    php artisan optimize ;;
+                            echo 'Building project...'
+                            case \"${PROJECT_TYPE}\" in
+                                vue) 
+                                    VITE_BASE_URL=\"/vue/${BRANCH_NAME}/\" npm run build ;;
+                                nextjs) 
+                                    VITE_BASE_URL=\"/vue/${BRANCH_NAME}/\" npm run build
+                                    pm2 restart ${PROJECT_TYPE}-${BRANCH_NAME} ;;
+                                laravel) 
+                                    sudo php artisan optimize ;;
                             esac
-
-                            # 6. PERMANENT PERMISSION FIX FOR NGINX
-                            # Resolves 500 Internal Server Errors and Blank Screens
-                            echo '🔒 Applying deep web-server permissions...'
-                            sudo chmod +x /var/www /var/www/html /var/www/html/${BRANCH_NAME}
-                            sudo chown -R ubuntu:www-data ${LIVE_DIR}
-                            sudo find ${LIVE_DIR} -type d -exec chmod 755 {} +
-                            sudo find ${LIVE_DIR} -type f -exec chmod 644 {} +
-
+                            
+                            # 3. Finalization logic remains in deploy.sh for deep permissions
                             echo '✅ Deployment Successfully Completed.'
                         "
                     '''
                 }
             }
         } 
-    }
+    } 
+    
     post {
-        success {
+        always {
             script {
-                echo "✅ Pipeline Successful"
-                /* sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"✅ Deployment Successful\"}' ${SLACK_WEBHOOK}" */
-            }
-        }
-        failure {
-            script {
-                echo "❌ Pipeline Failed"
-                /* sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"❌ Failed at: ${env.CURRENT_STAGE}\"}' ${SLACK_WEBHOOK}" */
+                def resultMsg = ""
+                def jobResult = currentBuild.currentResult 
+
+                if (env.BRANCH_NAME == 'test') {
+                    if (qgStatus == 'OK') {
+                        resultMsg = (jobResult == 'SUCCESS') ? "Quality Gate PASSED and Deployment DONE" : "Quality Gate PASSED and Deployment FAILED at stage: ${currentStage}"
+                    } else {
+                        resultMsg = "Gate ${qgStatus} + Deployment NOT DONE because Quality Gate did not pass."
+                    }
+                } else {
+                    resultMsg = (jobResult == 'SUCCESS') ? "Deployment DONE for ${env.BRANCH_NAME} successfully" : "Deployment FAILED for ${env.BRANCH_NAME} at stage: ${currentStage}"
+                }
+
+                sh """
+                    curl -X POST -H 'Content-type: application/json' \
+                    --data '{"text":"*Project:* ${PROJECT_TYPE}\\n*Branch:* ${env.BRANCH_NAME}\\n*Result:* ${resultMsg}\\n<${env.BUILD_URL}|View Logs>"}' \
+                    ${SLACK_WEBHOOK}
+                """
             }
         }
     }
