@@ -1,17 +1,20 @@
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'node:path'
-import { defineConfig, loadEnv } from 'vite' // Added loadEnv here
+import { defineConfig, loadEnv } from 'vite'
 import { createHtmlPlugin } from 'vite-plugin-html'
 
 export default defineConfig(({ mode }) => {
   /**
    * loadEnv(mode, process.cwd(), '') loads variables from the system environment.
-   * This allows Vite to see the BASE_URL we export in the pipeline.
+   * This allows Vite to see the VITE_BASE_URL we export in the pipeline.
    */
   const env = loadEnv(mode, process.cwd(), '')
   
-  // Use the environment variable if it exists, otherwise default to development
-  const base_path = env.BASE_URL || '/vue/development/';
+  /**
+   * FIX: Check for VITE_BASE_URL first. 
+   * Fallback to '/' instead of a hardcoded development path to prevent cross-branch leaks.
+   */
+  const base_path = env.VITE_BASE_URL || '/';
 
   return {
     // Apply the dynamic base path
