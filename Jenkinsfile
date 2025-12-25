@@ -64,13 +64,14 @@ pipeline {
                 script { currentStage = STAGE_NAME }
                 
                 sshagent(['deploy-server-key']) {
-                    sh '''
-                        sh "ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} 'bash -s' < '${WORKSPACE}/deploy.sh' ${BRANCH_NAME} ${PROJECT_TYPE} ${GIT_CREDS_USR} ${GIT_CREDS_PSW}"
+                    // FIX: Removed the redundant 'sh' inside the string and fixed pathing
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                             set -e
                             
                             # 1. Run the external script for Prep & Cleanup
-                            # We pipe the local deploy.sh to the server bash
-                            bash -s < ./deploy.sh ${BRANCH_NAME} ${PROJECT_TYPE} ${GIT_CREDS_USR} ${GIT_CREDS_PSW}
+                            # We pipe the workspace deploy.sh directly to the server bash
+                            bash -s < ${WORKSPACE}/deploy.sh ${BRANCH_NAME} ${PROJECT_TYPE} ${GIT_CREDS_USR} ${GIT_CREDS_PSW}
 
                             # 2. Your Required Manual Steps
                             cd /var/www/html/${BRANCH_NAME}/${PROJECT_TYPE}-project
@@ -89,14 +90,13 @@ pipeline {
                                     sudo php artisan optimize ;;
                             esac
                             
-                            # 3. Finalization logic remains in deploy.sh for deep permissions
                             echo '✅ Deployment Successfully Completed.'
                         "
-                    '''
+                    """
                 }
             }
         } 
-    } 
+    }
     
     post {
         always {
