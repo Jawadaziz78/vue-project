@@ -4,7 +4,7 @@ pipeline {
     triggers { githubPush() }
     
     environment {
-        PROJECT_TYPE  = 'vue' // Options: vue, nextjs, laravel
+        PROJECT_TYPE  = 'vue' // Change to 'nextjs' or 'laravel' as needed per repo
         DEPLOY_HOST   = 'localhost'
         DEPLOY_USER   = 'ubuntu'
         GIT_CREDS     = credentials('github-https-creds') 
@@ -76,29 +76,26 @@ pipeline {
                                 sudo npm install -g pnpm
                             fi
 
-                            # 3. Environment Cleanup & Security Bypass
-                            echo '🧹 Deep cleaning node_modules...'
+                            # 3. Deep Environment Cleanup (Resolves EACCES)
+                            echo '🧹 Cleaning node_modules and resetting ownership...'
                             sudo rm -rf node_modules
                             sudo chown -R ubuntu:ubuntu .
 
-                            # Force pnpm to ignore scripts during install to prevent EACCES crash
+                            # 4. Dependency Installation (pnpm v10 Security Bypass)
                             pnpm config set ignore-scripts true
-                            
-                            echo '📦 Installing dependencies (Security Bypass active)...'
-                            pnpm install
+                            echo '📦 Installing dependencies...'
+                            if [ \\"${PROJECT_TYPE}\\" = \\"laravel\\" ]; then
+                                composer install --no-interaction --prefer-dist --optimize-autoloader
+                            else
+                                pnpm install
+                                # Grant execution rights BEFORE running build scripts
+                                sudo find node_modules/.pnpm -name "esbuild" -exec chmod +x {} +
+                                sudo chmod -R +x node_modules/.bin
+                                pnpm config set ignore-scripts false
+                                pnpm rebuild esbuild
+                            fi
 
-                            # 4. Binary Permission Fix (Fixes Vite/Esbuild EACCES)
-                            echo '🔓 Granting execution rights to hidden pnpm binaries...'
-                            # This fixes the exact binary mentioned in your error log
-                            sudo find node_modules/.pnpm -name "esbuild" -exec chmod +x {} +
-                            sudo chmod -R +x node_modules/.bin
-
-                            # 5. Restore Scripts and Rebuild approved dependencies
-                            pnpm config set ignore-scripts false
-                            echo '🏗️ Rebuilding native modules...'
-                            pnpm rebuild esbuild
-
-                            # 6. Framework Specific Build Stage
+                            # 5. Framework Specific Build
                             echo '🏗️ Building ${PROJECT_TYPE} project...'
                             case \\"${PROJECT_TYPE}\\" in
                                 vue)
@@ -111,8 +108,8 @@ pipeline {
                                     php artisan optimize ;;
                             esac
 
-                            # 7. Final Nginx Permission Handover
-                            echo '🔒 Locking in permanent Nginx web permissions...'
+                            # 6. PERMANENT PERMISSION FIX FOR NGINX (Resolves 500/Blank Screen)
+                            echo '🔒 Applying deep web-server permissions...'
                             sudo chmod +x /var/www /var/www/html /var/www/html/${BRANCH_NAME}
                             sudo chown -R ubuntu:www-data ${LIVE_DIR}
                             sudo find ${LIVE_DIR} -type d -exec chmod 755 {} +
@@ -125,7 +122,6 @@ pipeline {
             }
         } 
     }
-    
     post {
         success {
             script {
