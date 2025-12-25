@@ -16,12 +16,15 @@ const routes = [
   },
   {
     path: '/:pathMatch(.*)*',
+    // Change: Ensure redirect respects the base path
     redirect: '/',
   },
 ]
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  // This ensures the router matches the subfolder (e.g., /vue/test/) 
+  // provided by Vite during the build process
+  history: createWebHistory(import.meta.env.VITE_BASE_URL || import.meta.env.BASE_URL || '/'),
   routes,
   linkActiveClass: 'active',
 })
