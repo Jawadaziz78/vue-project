@@ -1,9 +1,10 @@
 pipeline {
     agent any
+    
     triggers { githubPush() }
     
     environment {
-        PROJECT_TYPE  = 'vue'
+        PROJECT_TYPE  = 'vue' // Change to 'nextjs' or 'laravel' as needed per repo
         DEPLOY_HOST   = 'localhost'
         DEPLOY_USER   = 'ubuntu'
         GIT_CREDS     = credentials('github-https-creds') 
@@ -47,7 +48,7 @@ pipeline {
                 script {
                     env.CURRENT_STAGE = 'Build and Deploy'
                     if (env.BRANCH_NAME == 'test' && env.QUALITY_GATE_STATUS != 'OK') {
-                        error "❌ Quality Gate Failed"
+                        error "❌ BLOCKING DEPLOYMENT: Quality Gate status is '${env.QUALITY_GATE_STATUS}'"
                     }
                     env.LIVE_DIR = "/var/www/html/${env.BRANCH_NAME}/${env.PROJECT_TYPE}-project"
                 }
@@ -58,9 +59,9 @@ pipeline {
                             set -e
                             echo '--- 🚀 Starting Deployment for ${BRANCH_NAME} ---'
                             
-                            # 1. Self-Healing & Self-Cleaning Logic
+                            # 1. Self-Healing Code Sync
                             if [ ! -d \\"${LIVE_DIR}/.git\\" ]; then
-                                sudo mkdir -p $(dirname ${LIVE_DIR})
+                                sudo mkdir -p /var/www/html/${BRANCH_NAME}
                                 sudo git clone -b ${BRANCH_NAME} https://${GIT_CREDS_USR}:${GIT_CREDS_PSW}@github.com/Jawadaziz78/vue-project.git ${LIVE_DIR}
                             else
                                 cd ${LIVE_DIR}
@@ -70,41 +71,49 @@ pipeline {
 
                             cd ${LIVE_DIR}
 
-                            # 2. Automated pnpm Installation
+                            # 2. Automated pnpm Setup
                             if ! command -v pnpm &> /dev/null; then
                                 sudo npm install -g pnpm
                             fi
 
-                            # 3. FORCE CLEAN node_modules to fix Permission Denied permanently
-                            echo '🧹 Cleaning existing node_modules to reset permissions...'
+                            # 3. Environment Cleanup (Solves Permission Denied / EACCES)
+                            echo '🧹 Cleaning node_modules and fixing ownership...'
                             sudo rm -rf node_modules
                             sudo chown -R ubuntu:ubuntu .
                             
-                            echo '📦 Performing fresh installation...'
-                            pnpm install
+                            # 4. Dependency Installation
+                            echo '📦 Installing dependencies...'
+                            if [ \\"${PROJECT_TYPE}\\" = \\"laravel\\" ]; then
+                                composer install --no-interaction --prefer-dist --optimize-autoloader
+                            else
+                                # Use --no-scripts for pnpm v10 to prevent early EACCES crash
+                                pnpm install --no-scripts
+                                
+                                # Grant execution rights BEFORE running build scripts
+                                sudo chmod -R +x node_modules/.bin
+                                pnpm rebuild
+                            fi
 
-                            # 4. Build Step with Vite Permission Fix
-                            echo '🔓 Ensuring binaries are executable...'
-                            sudo chmod -R +x node_modules/.bin
-
-                            echo 'Building project...'
+                            # 5. Build Stage for all Project Types
+                            echo '🏗️ Building ${PROJECT_TYPE} project...'
                             case \\"${PROJECT_TYPE}\\" in
                                 vue)
-                                    VITE_BASE_URL=\\"/${PROJECT_TYPE}/${BRANCH_NAME}/\\"
-                                    pnpm run build ;;
+                                    VITE_BASE_URL=\\"/vue/${BRANCH_NAME}/\\" pnpm run build ;;
                                 nextjs)
                                     pnpm run build
-                                    pm2 restart ${PROJECT_TYPE}-${BRANCH_NAME} ;;
+                                    # Restart PM2 process if it exists
+                                    pm2 restart ${PROJECT_TYPE}-${BRANCH_NAME} || pm2 start pnpm --name ${PROJECT_TYPE}-${BRANCH_NAME} -- start ;;
                                 laravel)
-                                    sudo php artisan optimize ;;
+                                    php artisan migrate --force
+                                    php artisan optimize ;;
                             esac
 
-                            # 5. PERMANENT PERMISSION FIX FOR NGINX
-                            echo '🔒 Applying Nginx web permissions...'
+                            # 6. PERMANENT PERMISSION FIX FOR NGINX
+                            echo '🔒 Applying final web-server permissions...'
                             sudo chmod +x /var/www /var/www/html /var/www/html/${BRANCH_NAME}
                             sudo chown -R ubuntu:www-data ${LIVE_DIR}
-                            sudo find ${LIVE_DIR} -type d -exec chmod 755 {} \\;
-                            sudo find ${LIVE_DIR} -type f -exec chmod 644 {} \\;
+                            sudo find ${LIVE_DIR} -type d -exec chmod 755 {} +
+                            sudo find ${LIVE_DIR} -type f -exec chmod 644 {} +
 
                             echo '✅ Deployment Successfully Completed.'
                         "
