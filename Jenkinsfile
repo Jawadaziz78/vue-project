@@ -1,24 +1,18 @@
 pipeline {
     agent any
     
-    // Automatically triggers build when code is pushed to GitHub
     triggers { githubPush() }
     
     environment {
-        PROJECT_TYPE  = 'vue' // Change to 'nextjs' or 'laravel' as needed per project
+        PROJECT_TYPE  = 'vue' 
         DEPLOY_HOST   = 'localhost'
         DEPLOY_USER   = 'ubuntu'
-        
-        // GitHub Credentials for automated cloning
         GIT_CREDS     = credentials('github-https-creds') 
-        
-        // Tracking current stage for notifications
         CURRENT_STAGE = 'Initialization' 
     }
     
     stages {
         stage('SonarQube Analysis') {
-            // SonarQube runs only on the test branch to match your GHA workflow
             when { branch 'test' }
             steps {
                 script {
@@ -41,8 +35,7 @@ pipeline {
             steps {
                 script {
                     env.CURRENT_STAGE = 'Quality Gate'
-                    timeout(time: 2, unit: 'MINUTES') {
-                        // Aborts if Quality Gate is not 'OK'
+                    timeout(time: 2, unit: 'MINUTES') { 
                         env.QUALITY_GATE_STATUS = waitForQualityGate(abortPipeline: true).status
                     }
                 }
@@ -53,14 +46,9 @@ pipeline {
             steps {
                 script {
                     env.CURRENT_STAGE = 'Build and Deploy'
-                    
-                    // Safety: Skip Quality Gate check for development and stage branches
-                    if (env.BRANCH_NAME == 'test') {
-                        if (env.QUALITY_GATE_STATUS != 'OK') {
-                            error "❌ BLOCKING DEPLOYMENT: Quality Gate status is '${env.QUALITY_GATE_STATUS}'"
-                        }
+                    if (env.BRANCH_NAME == 'test' && env.QUALITY_GATE_STATUS != 'OK') {
+                        error "❌ BLOCKING DEPLOYMENT: Quality Gate status is '${env.QUALITY_GATE_STATUS}'"
                     }
-
                     env.LIVE_DIR = "/var/www/html/${env.BRANCH_NAME}/${env.PROJECT_TYPE}-project"
                 }
                 
@@ -70,67 +58,55 @@ pipeline {
                             set -e
                             echo '--- 🚀 Starting Deployment for ${BRANCH_NAME} ---'
                             
-                            # 1. Self-Cleaning Code Sync
+                            # 1. Self-Healing Code Sync
                             if [ ! -d \\"${LIVE_DIR}/.git\\" ]; then
-                                sudo mkdir -p /var/www/html/${BRANCH_NAME}
-                                sudo git clone -b ${BRANCH_NAME} https://${GIT_CREDS_USR}:${GIT_CREDS_PSW}@github.com/Jawadaziz78/vue-project.git ${LIVE_DIR}
+                                echo '⚠️ Cleaning up non-git directory...'
+                                sudo rm -rf \\"${LIVE_DIR}\\"
+                                sudo mkdir -p \\$(dirname \\"${LIVE_DIR}\\")
+                                sudo git clone -b ${BRANCH_NAME} https://${GIT_CREDS_USR}:${GIT_CREDS_PSW}@github.com/Jawadaziz78/vue-project.git \\"${LIVE_DIR}\\"
                             else
-                                cd ${LIVE_DIR}
-                                # Cleans local modifications to prevent merge conflicts
+                                cd \\"${LIVE_DIR}\\"
                                 sudo git checkout . 
                                 sudo git pull origin ${BRANCH_NAME}
                             fi
 
-                            cd ${LIVE_DIR}
+                            cd \\"${LIVE_DIR}\\"
 
-                            # 2. Automated pnpm Setup
+                            # 2. Setup
                             if ! command -v pnpm &> /dev/null; then
                                 sudo npm install -g pnpm
                             fi
-
-                            # 3. Security Bypass & Ownership Fix
-                            echo '🧹 Deep cleaning node_modules and fixing ownership...'
                             sudo rm -rf node_modules
                             sudo chown -R ubuntu:ubuntu .
-
-                            # Disable scripts to prevent pnpm v10 EACCES crash during install
                             pnpm config set ignore-scripts true
                             
-                            echo '📦 Installing dependencies...'
-                            if [ \\"${PROJECT_TYPE}\\" = \\"laravel\\" ]; then
-                                composer install --no-interaction --prefer-dist --optimize-autoloader
-                            else
-                                pnpm install
-                                
-                                # 4. Grant execution rights to hidden binaries
-                                echo '🔓 Granting binary execution rights...'
-                                sudo find node_modules/.pnpm -name \\"esbuild\\" -exec chmod +x {} +
-                                sudo chmod -R +x node_modules/.bin
-                                
-                                # Restore scripts and rebuild native modules
-                                pnpm config set ignore-scripts false
-                                pnpm rebuild esbuild
-                            fi
+                            # 3. Clean Install & Binary Fix
+                            pnpm install
+                            sudo find node_modules/.pnpm -name 'esbuild' -exec chmod +x {} +
+                            sudo chmod -R +x node_modules/.bin
+                            pnpm config set ignore-scripts false
+                            pnpm rebuild esbuild
 
-                            # 5. Dynamic .env Generation & Build
-                            # This ensures the correct subfolder routing for each branch
+                            # 4. NUCLEAR FIX: Forced Path Injection
+                            # We delete dist first to ensure no old files remain.
+                            # We pass VITE_BASE_URL twice: in .env AND as an inline command variable.
                             echo '🏗️ Building ${PROJECT_TYPE} project...'
+                            sudo rm -rf dist
                             echo \\"VITE_BASE_URL=/vue/${BRANCH_NAME}/\\" > .env
                             
                             case \\"${PROJECT_TYPE}\\" in
                                 vue)
                                     VITE_BASE_URL=\\"/vue/${BRANCH_NAME}/\\" pnpm run build ;;
                                 nextjs)
-                                    pnpm run build
+                                    VITE_BASE_URL=\\"/vue/${BRANCH_NAME}/\\" pnpm run build
                                     pm2 restart ${PROJECT_TYPE}-${BRANCH_NAME} || pm2 start pnpm --name ${PROJECT_TYPE}-${BRANCH_NAME} -- start ;;
                                 laravel)
                                     php artisan migrate --force
                                     php artisan optimize ;;
                             esac
 
-                            # 6. PERMANENT PERMISSION FIX FOR NGINX
-                            # Resolves 500 Internal Server Errors and Blank Screens
-                            echo '🔒 Applying deep web-server permissions...'
+                            # 5. Permission Finalization
+                            echo '🔒 Applying permissions...'
                             sudo chmod +x /var/www /var/www/html /var/www/html/${BRANCH_NAME}
                             sudo chown -R ubuntu:www-data ${LIVE_DIR}
                             sudo find ${LIVE_DIR} -type d -exec chmod 755 {} +
