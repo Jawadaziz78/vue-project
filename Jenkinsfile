@@ -7,7 +7,7 @@ pipeline {
     triggers { githubPush() }
     
     environment {
-        PROJECT_TYPE  = 'vue' // Change to 'vue' or 'nextjs' as needed
+        PROJECT_TYPE  = 'vue' // Set to 'vue', 'nextjs', or 'laravel'
         DEPLOY_HOST   = 'localhost'
         DEPLOY_USER   = 'ubuntu'
         
@@ -64,16 +64,16 @@ pipeline {
                 script { currentStage = STAGE_NAME }
                 
                 sshagent(['deploy-server-key']) {
-                    // FIX: Removed the redundant 'sh' inside the string and fixed pathing
+                    // FIX: Triple quotes ensure variables like ${WORKSPACE} expand correctly
                     sh """
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                             set -e
                             
                             # 1. Run the external script for Prep & Cleanup
-                            # We pipe the workspace deploy.sh directly to the server bash
+                            # Streams local workspace script to remote bash
                             bash -s < ${WORKSPACE}/deploy.sh ${BRANCH_NAME} ${PROJECT_TYPE} ${GIT_CREDS_USR} ${GIT_CREDS_PSW}
 
-                            # 2. Your Required Manual Steps
+                            # 2. Manual Build Steps (Kept in Jenkinsfile as requested)
                             cd /var/www/html/${BRANCH_NAME}/${PROJECT_TYPE}-project
                             
                             echo 'Pulling latest code from ${BRANCH_NAME}...'
