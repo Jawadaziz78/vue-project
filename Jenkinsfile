@@ -7,7 +7,7 @@ pipeline {
     triggers { githubPush() }
     
     environment {
-        PROJECT_TYPE  = 'laravel' // Change to 'vue' or 'nextjs' as needed
+        PROJECT_TYPE  = 'vue' // Change to 'vue' or 'nextjs' as needed
         DEPLOY_HOST   = '172.31.77.148'
         DEPLOY_USER   = 'ubuntu'
         
