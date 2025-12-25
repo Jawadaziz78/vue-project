@@ -8,7 +8,7 @@ pipeline {
     
     environment {
         PROJECT_TYPE  = 'vue' // Change to 'vue' or 'nextjs' as needed
-        DEPLOY_HOST   = '172.31.77.148'
+        DEPLOY_HOST   = 'localhost'
         DEPLOY_USER   = 'ubuntu'
         
         // --- Slack Webhook (COMMENTED OUT) ---
