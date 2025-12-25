@@ -6,23 +6,23 @@ pipeline {
     
     environment {
         PROJECT_TYPE  = 'vue'
-        // Deployment is local on this new instance
+        // Deployment is local on this master-deployment instance
         DEPLOY_HOST   = 'localhost'
         DEPLOY_USER   = 'ubuntu'
         
         // GitHub Credentials for the automated clone logic
         GIT_CREDS     = credentials('github-https-creds') 
         
-        // Initialize Stage Tracker for detailed notifications
+        // Initialize Stage Tracker for detailed Slack alerts
         CURRENT_STAGE = 'Initialization' 
         
-        // Slack Webhook (Fully implemented but commented out)
+        // Slack Webhook (Fully restored but commented out)
         // SLACK_WEBHOOK = credentials('slack-webhook-url')
     }
     
     stages {
         stage('SonarQube Analysis') {
-            // Parity with GHA: Run ONLY on the test branch
+            // Logic: Run ONLY on the test branch
             when { branch 'test' }
             steps {
                 script {
@@ -42,7 +42,7 @@ pipeline {
         }
 
         stage('Quality Gate') {
-            // Parity with GHA: Run ONLY on the test branch
+            // Logic: Run ONLY on the test branch
             when { branch 'test' }
             steps {
                 script {
@@ -82,7 +82,7 @@ pipeline {
                             
                             # 1. Self-Healing Clone/Update Logic
                             if [ ! -d \\"${LIVE_DIR}/.git\\" ]; then
-                                echo '⚠️ Directory empty or not a git repo. Performing initial clone...'
+                                echo '⚠️ Directory empty. Performing initial clone...'
                                 sudo rm -rf ${LIVE_DIR}
                                 sudo mkdir -p $(dirname ${LIVE_DIR})
                                 sudo git clone -b ${BRANCH_NAME} https://${GIT_CREDS_USR}:${GIT_CREDS_PSW}@github.com/Jawadaziz78/vue-project.git ${LIVE_DIR}
@@ -94,9 +94,9 @@ pipeline {
 
                             cd ${LIVE_DIR}
 
-                            # 2. Automated pnpm Installation (The 'Do it all' step)
+                            # 2. Automated pnpm Installation
                             if ! command -v pnpm &> /dev/null; then
-                                echo '🛠️ pnpm not found. Installing pnpm globally for this server...'
+                                echo '🛠️ pnpm not found. Installing pnpm globally...'
                                 sudo npm install -g pnpm
                             fi
 
@@ -108,7 +108,7 @@ pipeline {
                                 echo '⏭️ node_modules found. Skipping installation.'
                             fi
 
-                            # 4. Preparation & Project-Specific Build
+                            # 4. Build Step
                             sudo chown -R ubuntu:ubuntu ${LIVE_DIR}
                             echo 'Building project...'
                             case \\"${PROJECT_TYPE}\\" in
@@ -121,6 +121,14 @@ pipeline {
                                 laravel)
                                     sudo php artisan optimize ;;
                             esac
+
+                            # 5. PERMANENT PERMISSION FIX FOR NGINX
+                            echo '🔒 Locking in permanent Nginx permissions...'
+                            sudo chmod +x /var/www /var/www/html /var/www/html/${BRANCH_NAME}
+                            sudo chown -R ubuntu:www-data ${LIVE_DIR}
+                            sudo find ${LIVE_DIR} -type d -exec chmod 755 {} \\;
+                            sudo find ${LIVE_DIR} -type f -exec chmod 644 {} \\;
+
                             echo '✅ Deployment Successfully Completed.'
                         "
                     '''
@@ -133,7 +141,7 @@ pipeline {
         success {
             script {
                 echo "✅ Pipeline Successful"
-                // Success Notification (Commented out)
+                // Success Notification (Restored but commented out)
                 /*
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
@@ -146,7 +154,7 @@ pipeline {
         failure {
             script {
                 echo "❌ Pipeline Failed"
-                // Detailed Failure Notification using CURRENT_STAGE
+                // Failure Notification (Restored but commented out)
                 /*
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
