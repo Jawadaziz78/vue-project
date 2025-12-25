@@ -65,7 +65,7 @@ pipeline {
                 
                 sshagent(['deploy-server-key']) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                        sh "ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} 'bash -s' < ${WORKSPACE}/deploy.sh ${BRANCH_NAME} ${PROJECT_TYPE} ${GIT_CREDS_USR} ${GIT_CREDS_PSW}"
                             set -e
                             
                             # 1. Run the external script for Prep & Cleanup
