@@ -7,7 +7,7 @@ pipeline {
     triggers { githubPush() }
     
     environment {
-        PROJECT_TYPE  = 'vue' // Change to 'nextjs' or 'laravel' as needed
+        PROJECT_TYPE  = 'vue' // Change to 'vue', 'nextjs', or 'laravel' as needed
         DEPLOY_HOST   = 'localhost'
         DEPLOY_USER   = 'ubuntu'
         GIT_CREDS     = credentials('github-https-creds') 
@@ -24,7 +24,7 @@ pipeline {
                     currentStage = STAGE_NAME 
                     withSonarQubeEnv('sonar-server') {
                         sh '''
-                            export SONAR_NODE_ARGS='--max-old-space-size=512'      
+                            export SONAR_NODE_ARGS='--max-old-space-size=2048'      
                             /home/ubuntu/sonar-scanner/bin/sonar-scanner \
                                -Dsonar.projectKey=${PROJECT_TYPE}-project \
                                -Dsonar.sources=app \
@@ -40,7 +40,7 @@ pipeline {
             steps {
                 script {
                     currentStage = STAGE_NAME
-                    timeout(time: 2, unit: 'MINUTES') {
+                    timeout(time: 3, unit: 'MINUTES') {
                         def qg = waitForQualityGate(abortPipeline: true)
                         qgStatus = qg.status
                         if (qgStatus != 'OK') {
@@ -63,15 +63,19 @@ pipeline {
                 script { currentStage = STAGE_NAME }
                 
                 sshagent(['deploy-server-key']) {
-                    // THE CRITICAL FIX: Move the redirection OUTSIDE of the double-quoted SSH command
-                    // This streams the LOCAL Jenkins file into the REMOTE bash session
+                    // FIX: Using 'cat | ssh' pipeline to strictly avoid "No such file" errors
                     sh """
-                        ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "bash -s -- ${BRANCH_NAME} ${PROJECT_TYPE} ${GIT_CREDS_USR} ${GIT_CREDS_PSW}" < ${WORKSPACE}/deploy.sh
+                        echo '--- 🔍 DEBUG: Listing Workspace Files ---'
+                        ls -la
                         
+                        echo '--- 🚀 Starting Deployment Stream ---'
+                        # We pipe the local file content directly into the remote bash session
+                        cat deploy.sh | ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "bash -s -- ${BRANCH_NAME} ${PROJECT_TYPE} ${GIT_CREDS_USR} ${GIT_CREDS_PSW}"
+
+                        # Manual Steps (Executed on Remote Server)
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                             set -e
                             
-                            # 2. Your Required Manual Steps
                             cd /var/www/html/${BRANCH_NAME}/${PROJECT_TYPE}-project
                             
                             echo 'Pulling latest code from ${BRANCH_NAME}...'
