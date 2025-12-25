@@ -14,7 +14,6 @@ const routes = [
     component: () => import('../views/About.vue'),
     meta: { layout: 'default' },
   },
-  // Catch-all to fix blank page issues
   {
     path: '/:pathMatch(.*)*',
     redirect: '/',
@@ -27,6 +26,5 @@ const router = createRouter({
   linkActiveClass: 'active',
 })
 
-// EXPORT BOTH WAYS (Fixes the build error)
 export { router }
 export default router

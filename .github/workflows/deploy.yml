@@ -1,3 +1,4 @@
+
 name: Deployment Pipeline
 
 on:
@@ -91,25 +92,34 @@ jobs:
             esac
             echo "✅ Deployment Successfully Completed."
 
-      # - name: Notify
-      #   if: always()
-      #   run: |
-      #     GATE_STATUS="${{ steps.sonarqube-quality-gate.outputs.quality-gate-status }}"
-      #     BRANCH="${{ github.ref_name }}"
-      #     PROJECT="${{ env.PROJECT_TYPE }}"
-      #
-      #     if [[ "${{ job.status }}" == "success" ]]; then
-      #       STATUS_EMOJI="PASSED ✅"
-      #       DETAIL="Deployment Successful for $BRANCH!"
-      #     else
-      #       if [[ "$BRANCH" == "test" && ("$GATE_STATUS" == "FAILED" || "$GATE_STATUS" == "ERROR") ]]; then
-      #         STATUS_EMOJI="FAILED ❌"
-      #         DETAIL="Deployment for $BRANCH is BLOCKED. Quality Gate failed."
-      #       else
-      #         STATUS_EMOJI="FAILED ❌"
-      #         DETAIL="Deployment for $BRANCH failed during the Build/Deploy step."
-      #       fi
-      #     fi
-      #
-      #     PAYLOAD="{\"text\":\"*Project:* $PROJECT\n*Branch:* $BRANCH\n*Sonar Status:* $STATUS_EMOJI\n*Detail:* $DETAIL\"}"
-      #     curl -X POST -H 'Content-type: application/json' --data "$PAYLOAD" "${{ secrets.SLACK_WEBHOOK }}"
+      - name: Notify
+        if: always()
+        run: |
+          GATE_STATUS="${{ steps.sonarqube-quality-gate.outputs.quality-gate-status }}"
+          BRANCH="${{ github.ref_name }}"
+          PROJECT="${{ env.PROJECT_TYPE }}"
+          JOB_STATUS="${{ job.status }}"
+          
+          if [[ "$BRANCH" == "test" ]]; then
+            # Logic for TEST branch (Gate + Deploy)
+            if [[ "$GATE_STATUS" == "PASSED" ]]; then
+              if [[ "$JOB_STATUS" == "success" ]]; then
+                RESULT="Gate PASSED + Deployment DONE"
+              else
+                RESULT="Gate PASSED + Deployment FAILED"
+              fi
+            else
+              RESULT="Gate ${GATE_STATUS:-UNKNOWN} + Deployment NOT DONE because Quality Gate did not pass."
+            fi
+          else
+            # Logic for STAGE/DEVELOPMENT branches (Deploy only)
+            if [[ "$JOB_STATUS" == "success" ]]; then
+              RESULT="Deployment DONE for $BRANCH successfully"
+            else
+              RESULT="Deployment FAILED for $BRANCH"
+            fi
+          fi
+
+          PAYLOAD="{\"text\":\"*Project:* $PROJECT\n*Branch:* $BRANCH\n*Result:* $RESULT\"}"
+          
+          curl -X POST -H 'Content-type: application/json' --data "$PAYLOAD" "${{ secrets.SLACK_WEBHOOK }}"
