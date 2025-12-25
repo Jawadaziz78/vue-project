@@ -10,7 +10,10 @@ pipeline {
         PROJECT_TYPE  = 'laravel' // Change to 'vue' or 'nextjs' as needed
         DEPLOY_HOST   = '172.31.77.148'
         DEPLOY_USER   = 'ubuntu'
-        SLACK_WEBHOOK = credentials('slack-webhook-url')
+        
+        // --- Slack Webhook (COMMENTED OUT) ---
+        // SLACK_WEBHOOK = credentials('slack-webhook-url')
+        
         GIT_CREDS     = credentials('github-https-creds') 
     }
     
@@ -111,11 +114,14 @@ pipeline {
                     resultMsg = (jobResult == 'SUCCESS') ? "Deployment DONE for ${env.BRANCH_NAME} successfully" : "Deployment FAILED for ${env.BRANCH_NAME} at stage: ${currentStage}"
                 }
 
+                // --- Slack Notification (COMMENTED OUT) ---
+                /*
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
                     --data '{"text":"*Project:* ${PROJECT_TYPE}\\n*Branch:* ${env.BRANCH_NAME}\\n*Result:* ${resultMsg}\\n<${env.BUILD_URL}|View Logs>"}' \
                     ${SLACK_WEBHOOK}
                 """
+                */
             }
         }
     }
