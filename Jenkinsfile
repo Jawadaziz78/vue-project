@@ -4,10 +4,14 @@ pipeline {
     
     environment {
         PROJECT_TYPE  = 'vue'
+        // Deployment is local on this new instance
         DEPLOY_HOST   = 'localhost'
         DEPLOY_USER   = 'ubuntu'
         
-        // 1. Initialize Stage Tracker
+        // GitHub Credentials for the automated clone logic
+        GIT_CREDS     = credentials('github-https-creds') 
+        
+        // 1. Initialize Stage Tracker for notifications
         CURRENT_STAGE = 'Initialization' 
         
         // Slack Webhook (Commented out for now)
@@ -16,13 +20,10 @@ pipeline {
     
     stages {
         stage('SonarQube Analysis') {
-            // Logic: This step runs ONLY on the test branch
-            when {
-                branch 'test'
-            }
+            // Parity with GHA: Run ONLY on the test branch
+            when { branch 'test' }
             steps {
                 script {
-                    // 2. Update Tracker
                     env.CURRENT_STAGE = 'SonarQube Analysis'
                     
                     withSonarQubeEnv('sonar-server') {
@@ -39,17 +40,14 @@ pipeline {
         }
 
         stage('Quality Gate') {
-            // Logic: This step runs ONLY on the test branch
-            when {
-                branch 'test'
-            }
+            // Parity with GHA: Run ONLY on the test branch
+            when { branch 'test' }
             steps {
                 script {
-                    // 2. Update Tracker
                     env.CURRENT_STAGE = 'Quality Gate'
                     
                     timeout(time: 2, unit: 'MINUTES') {
-                        // This handles the "Quality Gate Decision" logic from GHA
+                        // Returns 'OK' or 'ERROR'
                         env.QUALITY_GATE_STATUS = waitForQualityGate(abortPipeline: true).status
                     }
                 }
@@ -57,12 +55,8 @@ pipeline {
         }
 
         stage('Build and Deploy') {
-            // Logic: 
-            // 1. On 'test': Runs only if Quality Gate status is 'OK' (PASSED).
-            // 2. On 'development' or 'stage': Runs directly (skips Sonar logic).
             steps {
                 script {
-                    // 2. Update Tracker
                     env.CURRENT_STAGE = 'Build and Deploy'
                     
                     // Safety Check: Enforce Quality Gate ONLY for 'test' branch
@@ -70,11 +64,9 @@ pipeline {
                         echo "🔍 Verifying Quality Gate for ${env.BRANCH_NAME}..."
                         if (env.QUALITY_GATE_STATUS != 'OK') {
                             error "❌ BLOCKING DEPLOYMENT: Quality Gate status is '${env.QUALITY_GATE_STATUS}'"
-                        } else {
-                            echo "✅ Quality Gate PASSED. Proceeding to deployment..."
                         }
                     } else {
-                        echo "⏩ Skipping Quality Gate check for ${env.BRANCH_NAME} (Development/Stage flow)."
+                        echo "⏩ Skipping Quality Gate check for ${env.BRANCH_NAME}."
                     }
 
                     env.LIVE_DIR = "/var/www/html/${env.BRANCH_NAME}/${env.PROJECT_TYPE}-project"
@@ -86,9 +78,21 @@ pipeline {
                             set -e
                             echo '--- 🚀 Starting Deployment for ${BRANCH_NAME} ---'
                             
+                            # 1. Self-Healing Clone Logic
+                            if [ ! -d \\"${LIVE_DIR}/.git\\" ]; then
+                                echo '⚠️ Not a git repo. Performing initial clone...'
+                                sudo rm -rf ${LIVE_DIR}
+                                sudo mkdir -p $(dirname ${LIVE_DIR})
+                                sudo git clone -b ${BRANCH_NAME} https://${GIT_CREDS_USR}:${GIT_CREDS_PSW}@github.com/Jawadaziz78/vue-project.git ${LIVE_DIR}
+                            else
+                                echo '✅ Repository found. Updating code...'
+                                cd ${LIVE_DIR}
+                                sudo git pull origin ${BRANCH_NAME}
+                            fi
+
+                            # 2. Preparation & Build
+                            sudo chown -R ubuntu:ubuntu ${LIVE_DIR}
                             cd ${LIVE_DIR}
-                            echo 'Pulling latest code from ${BRANCH_NAME}...'
-                            git pull origin ${BRANCH_NAME}
                             
                             echo 'Building project...'
                             case \"${PROJECT_TYPE}\" in
@@ -113,24 +117,7 @@ pipeline {
         success {
             script {
                 echo "✅ Pipeline Successful"
-                
-                // --- Slack: Success Notification (Commented out) ---
-                // Purpose:
-                // - Sends a Slack message when the pipeline completes successfully.
-                // - Useful for keeping the team informed that deployment is live for a given branch.
-                //
-                // Requirements:
-                // - SLACK_WEBHOOK must be enabled above in `environment` (uncomment and ensure the Jenkins credential exists).
-                //
-                // Message Includes:
-                // - Project type (vue/nextjs/laravel)
-                // - Branch name (test/development/stage)
-                // - Final status (Live)
-                //
-                // Note:
-                // - Kept disabled to avoid accidental notifications while testing/iterating.
-                /*
-                sh """
+                /* sh """
                     curl -X POST -H 'Content-type: application/json' \
                     --data '{"text":"✅ *Deployment Successful*\\n📂 Project: ${PROJECT_TYPE}\\n🌿 Branch: ${env.BRANCH_NAME}\\n🚀 Status: Live"}' \
                     ${SLACK_WEBHOOK}
@@ -141,21 +128,6 @@ pipeline {
         failure {
             script {
                 echo "❌ Pipeline Failed"
-                
-                // --- Slack: Failure Notification (Commented out) ---
-                // Purpose:
-                // - Sends a Slack message when the pipeline fails so issues are visible immediately.
-                //
-                // Requirements:
-                // - SLACK_WEBHOOK must be enabled above in `environment` (uncomment and ensure the Jenkins credential exists).
-                //
-                // Message Includes:
-                // - Project type and branch
-                // - The stage where failure occurred (CURRENT_STAGE) to speed up debugging
-                // - A hint to check Jenkins Console Logs for the root cause
-                //
-                // Note:
-                // - Kept disabled to avoid noise while validating the pipeline and credentials.
                 /*
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
