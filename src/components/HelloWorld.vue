@@ -3,7 +3,7 @@
     <div class="col text-center">
       <h1 class="msg">{{ msg }}</h1>
       <p>
-        A Jawad Aziz JAWAD project setup using vue-cli, created to easily scaffold new Vue.js projects doing now on development
+        A Jawad Aziz JAWADS project setup using vue-cli, created to easily scaffold new Vue.js projects doing now on development
         branch.
         <br />
         Find out more at
