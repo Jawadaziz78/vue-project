@@ -9,6 +9,8 @@ pipeline {
         DEPLOY_USER   = 'ubuntu'
         GIT_CREDS     = credentials('github-https-creds') 
         CURRENT_STAGE = 'Initialization' 
+        
+        // SLACK_WEBHOOK = credentials('slack-webhook-url') // Uncomment when ready to use Slack
     }
     
     stages {
@@ -35,7 +37,9 @@ pipeline {
             steps {
                 script {
                     env.CURRENT_STAGE = 'Quality Gate'
+                    // Updated Quality Gate timeout to exactly 2 minutes
                     timeout(time: 2, unit: 'MINUTES') { 
+                        // Aborts if Quality Gate is not 'OK'
                         env.QUALITY_GATE_STATUS = waitForQualityGate(abortPipeline: true).status
                     }
                 }
@@ -60,12 +64,13 @@ pipeline {
                             
                             # 1. Self-Healing Code Sync
                             if [ ! -d \\"${LIVE_DIR}/.git\\" ]; then
-                                echo '⚠️ Cleaning up non-git directory...'
+                                echo '⚠️ Directory exists but is not a git repo. Cleaning up...'
                                 sudo rm -rf \\"${LIVE_DIR}\\"
                                 sudo mkdir -p \\$(dirname \\"${LIVE_DIR}\\")
                                 sudo git clone -b ${BRANCH_NAME} https://${GIT_CREDS_USR}:${GIT_CREDS_PSW}@github.com/Jawadaziz78/vue-project.git \\"${LIVE_DIR}\\"
                             else
                                 cd \\"${LIVE_DIR}\\"
+                                # Cleans local modifications to prevent merge conflicts
                                 sudo git checkout . 
                                 sudo git pull origin ${BRANCH_NAME}
                             fi
@@ -119,17 +124,20 @@ pipeline {
             }
         } 
     }
+    
     post {
         success {
             script {
                 echo "✅ Pipeline Successful"
-                /* sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"✅ Deployment Successful\"}' ${SLACK_WEBHOOK}" */
+                // Uncomment below line to enable Slack notifications
+                // sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"✅ Deployment Successful\"}' ${SLACK_WEBHOOK}"
             }
         }
         failure {
             script {
                 echo "❌ Pipeline Failed"
-                /* sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"❌ Failed at: ${env.CURRENT_STAGE}\"}' ${SLACK_WEBHOOK}" */
+                // Uncomment below line to enable Slack notifications
+                // sh "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"❌ Failed at: ${env.CURRENT_STAGE}\"}' ${SLACK_WEBHOOK}"
             }
         }
     }
