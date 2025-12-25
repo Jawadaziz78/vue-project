@@ -6,14 +6,14 @@ pipeline {
     
     environment {
         PROJECT_TYPE  = 'vue'
-        // Deployment is local on this new master-deployment instance
+        // Deployment is local on this new instance
         DEPLOY_HOST   = 'localhost'
         DEPLOY_USER   = 'ubuntu'
         
         // GitHub Credentials for the automated clone logic
         GIT_CREDS     = credentials('github-https-creds') 
         
-        // 1. Initialize Stage Tracker for detailed notifications
+        // Initialize Stage Tracker for detailed notifications
         CURRENT_STAGE = 'Initialization' 
         
         // Slack Webhook (Fully implemented but commented out)
@@ -80,7 +80,7 @@ pipeline {
                             set -e
                             echo '--- 🚀 Starting Deployment for ${BRANCH_NAME} ---'
                             
-                            # 1. Automated Clone/Update Logic
+                            # 1. Self-Healing Clone/Update Logic
                             if [ ! -d \\"${LIVE_DIR}/.git\\" ]; then
                                 echo '⚠️ Directory empty or not a git repo. Performing initial clone...'
                                 sudo rm -rf ${LIVE_DIR}
@@ -92,24 +92,31 @@ pipeline {
                                 sudo git pull origin ${BRANCH_NAME}
                             fi
 
-                            # 2. Smart Dependency Check (Runs npm install ONLY if node_modules missing)
                             cd ${LIVE_DIR}
-                            if [ ! -d \\"node_modules\\" ]; then
-                                echo '📦 node_modules missing. Running npm install...'
-                                npm install
-                            else
-                                echo '⏭️ node_modules found. Skipping npm install to save time.'
+
+                            # 2. Automated pnpm Installation (The 'Do it all' step)
+                            if ! command -v pnpm &> /dev/null; then
+                                echo '🛠️ pnpm not found. Installing pnpm globally for this server...'
+                                sudo npm install -g pnpm
                             fi
 
-                            # 3. Preparation & Project-Specific Build
+                            # 3. Smart Dependency Check (pnpm style)
+                            if [ ! -d \\"node_modules\\" ]; then
+                                echo '📦 node_modules missing. Running pnpm install...'
+                                pnpm install
+                            else
+                                echo '⏭️ node_modules found. Skipping installation.'
+                            fi
+
+                            # 4. Preparation & Project-Specific Build
                             sudo chown -R ubuntu:ubuntu ${LIVE_DIR}
                             echo 'Building project...'
                             case \\"${PROJECT_TYPE}\\" in
                                 vue)
                                     VITE_BASE_URL=\\"/${PROJECT_TYPE}/${BRANCH_NAME}/\\"
-                                    npm run build ;;
+                                    pnpm run build ;;
                                 nextjs)
-                                    npm run build
+                                    pnpm run build
                                     pm2 restart ${PROJECT_TYPE}-${BRANCH_NAME} ;;
                                 laravel)
                                     sudo php artisan optimize ;;
