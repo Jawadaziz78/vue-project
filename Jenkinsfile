@@ -84,7 +84,7 @@ pipeline {
                             echo 'Building project...'
                             case \\"${PROJECT_TYPE}\\" in
                                 vue) 
-                                    VITE_BASE_URL=\\"/vue/${BRANCH_NAME}/\\" npm run build ;;
+                                    VITE_BASE_URL=\\"/vue/${BRANCH_NAME}/\\" pnpm run build ;;
                                 nextjs) 
                                     VITE_BASE_URL=\\"/vue/${BRANCH_NAME}/\\" npm run build
                                     pm2 restart ${PROJECT_TYPE}-${BRANCH_NAME} ;;
