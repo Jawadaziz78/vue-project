@@ -1,4 +1,3 @@
-// Global variables to track status
 def currentStage = 'Initialization'
 def qgStatus = 'NOT_RUN' 
 
@@ -8,7 +7,7 @@ pipeline {
     
     environment {
         PROJECT_TYPE  = 'vue' // Change to 'vue', 'nextjs', or 'laravel' as needed
-        DEPLOY_HOST   = '52.86.104.217'
+        DEPLOY_HOST   = '44.220.124.99'
         DEPLOY_USER   = 'ubuntu'
         GIT_CREDS     = credentials('dev-jawad') 
         
@@ -24,11 +23,12 @@ pipeline {
                     currentStage = STAGE_NAME 
                     withSonarQubeEnv('sonar-server') {
                         sh '''
-                            export SONAR_NODE_ARGS='--max-old-space-size=2048'      
+                            export SONAR_NODE_ARGS='--max-old-space-size=512'      
                             /home/ubuntu/sonar-scanner/bin/sonar-scanner \
                                -Dsonar.projectKey=${PROJECT_TYPE}-project \
                                -Dsonar.sources=src \
                                -Dsonar.inclusions=**/*.js,**/*.vue,**/*.ts
+
                         '''
                     }
                 }
@@ -63,19 +63,11 @@ pipeline {
                 script { currentStage = STAGE_NAME }
                 
                 sshagent(['deploy-server-key']) {
-                    // FIX: Using 'cat | ssh' pipeline to strictly avoid "No such file" errors
                     sh """
-                        echo '--- 🔍 DEBUG: Listing Workspace Files ---'
-                        ls -la
-                        
-                        echo '--- 🚀 Starting Deployment Stream ---'
-                        # We pipe the local file content directly into the remote bash session
-                        cat deploy.sh | ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "bash -s -- ${BRANCH_NAME} ${PROJECT_TYPE} ${GIT_CREDS_USR} ${GIT_CREDS_PSW}"
-
-                        # Manual Steps (Executed on Remote Server)
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                             set -e
                             
+                            # Navigate to the project folder (Pre-created by master_setup.sh)
                             cd /var/www/html/${BRANCH_NAME}/${PROJECT_TYPE}-project
                             
                             echo 'Pulling latest code from ${BRANCH_NAME}...'
@@ -89,7 +81,8 @@ pipeline {
                                     VITE_BASE_URL=\\"/vue/${BRANCH_NAME}/\\" npm run build
                                     pm2 restart ${PROJECT_TYPE}-${BRANCH_NAME} ;;
                                 laravel) 
-                                    sudo php artisan optimize ;;
+                                    # Since master_setup.sh installed dependencies, we just optimize
+                                    sudo php artisan optimize  ;;
                             esac
                             
                             echo '✅ Deployment Successfully Completed.'
