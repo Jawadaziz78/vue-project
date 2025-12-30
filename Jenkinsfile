@@ -12,7 +12,7 @@ pipeline {
         GIT_CREDS     = credentials('dev-jawad') 
         
         // --- Slack Webhook (COMMENTED OUT) ---
-        // SLACK_WEBHOOK = credentials('slack-webhook-url')
+        SLACK_WEBHOOK = credentials('slack-webhook-url')
     }
     
     stages {
@@ -112,13 +112,13 @@ pipeline {
                 echo "Deployment Result: ${resultMsg}"
 
                 // --- Slack Notification (COMMENTED OUT) ---
-                /*
+                
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
                     --data '{"text":"*Project:* ${PROJECT_TYPE}\\n*Branch:* ${env.BRANCH_NAME}\\n*Result:* ${resultMsg}\\n<${env.BUILD_URL}|View Logs>"}' \
                     ${SLACK_WEBHOOK}
                 """
-                */
+                
             }
         }
     }
