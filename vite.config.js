@@ -4,21 +4,16 @@ import { defineConfig, loadEnv } from 'vite'
 import { createHtmlPlugin } from 'vite-plugin-html'
 
 export default defineConfig(({ mode }) => {
-  /**
-   * loadEnv(mode, process.cwd(), '') loads variables from the system environment.
-   * This allows Vite to see the VITE_BASE_URL we export in the pipeline.
-   */
   const env = loadEnv(mode, process.cwd(), '')
-  
-  /**
-   * FIX: Check for VITE_BASE_URL first. 
-   * Fallback to '/' instead of a hardcoded development path to prevent cross-branch leaks.
-   */
   const base_path = env.VITE_BASE_URL || '/';
 
   return {
-    // Apply the dynamic base path
     base: base_path, 
+    
+    // --- ADDED BUILD CLEANUP LOGIC ---
+    build: {
+      emptyOutDir: true, // Automatically clears the dist folder before building
+    },
     
     plugins: [
       vue(),
@@ -44,7 +39,6 @@ export default defineConfig(({ mode }) => {
       preprocessorOptions: {
         scss: {
           additionalData: `@use "@/scss/variables" as *;`,
-          // Silence deprecations for cleaner build logs
           silenceDeprecations: ['color-functions', 'global-builtin', 'import'],
         },
       },
