@@ -66,24 +66,14 @@ pipeline {
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                             set -e
                             
-                            # 1. UPDATE CODE (Inside the project sub-folder)
-                            # We must go here because the .git folder lives here
                             echo 'Navigate to project folder...'
                             cd /var/www/html/${env.BRANCH_NAME}/${PROJECT_TYPE}-project
-                            
-                            echo 'Pulling latest code...'
                             git pull origin ${env.BRANCH_NAME}
-                            
-                            # 2. DEPLOY (Back at root)
-                            # We go back to where docker-compose.yml lives
-                            echo 'Returning to root for Docker Compose...'
                             cd /var/www/html
-                            
-                            echo 'Building project...'
-                            # This uses PROJECT_TYPE (e.g. 'vue') to target 'vue-app' service
                             docker compose up -d --build ${PROJECT_TYPE}-app
-                            
+                            docker image prune -f
                             echo '✅ Deployment Successfully Completed for ${env.BRANCH_NAME}.'
+                            
                         "
                     """
                 }
