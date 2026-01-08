@@ -2,10 +2,10 @@ version: '3.8'
 services:
   vue-app:
     build:
-      context: ./${BRANCH}/vue-project
+      context: ./${BRANCH_NAME}/vue-project
       args:
-        - VITE_BASE_URL=/vue/${BRANCH}/
-    container_name: vue-${BRANCH}
+        - VITE_BASE_URL=/vue/${BRANCH_NAME}/
+    container_name: vue-${BRANCH_NAME}
     networks:
       - gateway-net
     ports:
@@ -13,19 +13,19 @@ services:
 
   laravel-app:
     build:
-      context: ./${BRANCH}/laravel-project
-    container_name: laravel-${BRANCH}
+      context: ./${BRANCH_NAME}/laravel-project
+    container_name: laravel-${BRANCH_NAME}
     environment:
-      - DB_DATABASE=laravel_${BRANCH}_db
+      - DB_DATABASE=laravel_${BRANCH_NAME}_db
     networks:
       - gateway-net
 
   nextjs-app:
     build:
-      context: ./${BRANCH}/nextjs-project
+      context: ./${BRANCH_NAME}/nextjs-project
       args:
-        - NEXT_PUBLIC_BASE_PATH=/nextjs/${BRANCH}
-    container_name: nextjs-${BRANCH}
+        - NEXT_PUBLIC_BASE_PATH=/nextjs/${BRANCH_NAME}
+    container_name: nextjs-${BRANCH_NAME}
     networks:
       - gateway-net
     ports:
