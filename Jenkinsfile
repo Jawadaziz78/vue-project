@@ -28,7 +28,6 @@ pipeline {
                                -Dsonar.projectKey=${PROJECT_TYPE}-project \
                                -Dsonar.sources=src \
                                -Dsonar.inclusions=**/*.js,**/*.vue,**/*.ts
-
                         '''
                     }
                 }
@@ -67,25 +66,28 @@ pipeline {
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                             set -e
                             
-                            # Navigate to the project folder (Pre-created by master_setup.sh)
-                            cd /var/www/html/${BRANCH_NAME}/${PROJECT_TYPE}-project
+                            # Navigate to the project folder using env.BRANCH_NAME
+                            cd /var/www/html/${env.BRANCH_NAME}/${PROJECT_TYPE}-project
                             
-                            echo 'Pulling latest code from ${BRANCH_NAME}...'
-                            git pull origin ${BRANCH_NAME}
+                            echo 'Pulling latest code from ${env.BRANCH_NAME}...'
+                            git pull origin ${env.BRANCH_NAME}
                             
                             echo 'Building project...'
                             case \\"${PROJECT_TYPE}\\" in
                                 vue) 
-                                    VITE_BASE_URL=\\"/vue/${BRANCH_NAME}/\\" pnpm run build ;;
+                                    echo 'Deploying Vue via Docker Compose for ${env.BRANCH_NAME}...'
+                                    # Jenkins environment variables are passed to the shell automatically
+                                    docker compose up -d --build vue-app 
+                                    ;;
+                                    
                                 nextjs) 
-                                    VITE_BASE_URL=\\"/vue/${BRANCH_NAME}/\\" npm run build
-                                    pm2 restart ${PROJECT_TYPE}-${BRANCH_NAME} ;;
+                                    VITE_BASE_URL=\\"/vue/${env.BRANCH_NAME}/\\" npm run build
+                                    pm2 restart ${PROJECT_TYPE}-${env.BRANCH_NAME} ;;
                                 laravel) 
-                                    # Since master_setup.sh installed dependencies, we just optimize
                                     sudo php artisan optimize  ;;
                             esac
                             
-                            echo '✅ Deployment Successfully Completed.'
+                            echo '✅ Deployment Successfully Completed for ${env.BRANCH_NAME}.'
                         "
                     """
                 }
@@ -110,15 +112,15 @@ pipeline {
                 }
 
                 echo "Deployment Result: ${resultMsg}"
-
-                // --- Slack Notification (COMMENTED OUT) ---
                 
+                // --- Slack Notification (COMMENTED OUT) ---
+                /*
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
                     --data '{"text":"*Project:* ${PROJECT_TYPE}\\n*Branch:* ${env.BRANCH_NAME}\\n*Result:* ${resultMsg}\\n<${env.BUILD_URL}|View Logs>"}' \
                     ${SLACK_WEBHOOK}
                 """
-                
+                */
             }
         }
     }
