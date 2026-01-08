@@ -113,14 +113,12 @@ pipeline {
 
                 echo "Deployment Result: ${resultMsg}"
                 
-                // --- Slack Notification (COMMENTED OUT) ---
-                /*
+                // --- Slack Notification (UNCOMMENTED) ---
                 sh """
                     curl -X POST -H 'Content-type: application/json' \
                     --data '{"text":"*Project:* ${PROJECT_TYPE}\\n*Branch:* ${env.BRANCH_NAME}\\n*Result:* ${resultMsg}\\n<${env.BUILD_URL}|View Logs>"}' \
                     ${SLACK_WEBHOOK}
                 """
-                */
             }
         }
     }
