@@ -2,18 +2,20 @@ version: '3.8'
 services:
   vue-app:
     build:
-      context: ./${BRANCH_NAME}/vue-project
+      context: . # Uses the folder where the Dockerfile is located
       args:
         - VITE_BASE_URL=/vue/${BRANCH_NAME}/
     container_name: vue-${BRANCH_NAME}
     networks:
       - gateway-net
+    # Port is handled by Jenkins variable or .env
     ports:
       - "${VUE_PORT}:80"
 
   laravel-app:
     build:
-      context: ./${BRANCH_NAME}/laravel-project
+      # Navigates up one level and into the laravel folder
+      context: ../laravel-project 
     container_name: laravel-${BRANCH_NAME}
     environment:
       - DB_DATABASE=laravel_${BRANCH_NAME}_db
@@ -22,7 +24,8 @@ services:
 
   nextjs-app:
     build:
-      context: ./${BRANCH_NAME}/nextjs-project
+      # Navigates up one level and into the nextjs folder
+      context: ../nextjs-project
       args:
         - NEXT_PUBLIC_BASE_PATH=/nextjs/${BRANCH_NAME}
     container_name: nextjs-${BRANCH_NAME}
