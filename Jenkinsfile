@@ -66,26 +66,16 @@ pipeline {
                         ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                             set -e
                             
-                            # Navigate to the project folder using env.BRANCH_NAME
-                            cd /var/www/html/${env.BRANCH_NAME}/${PROJECT_TYPE}-project
+                            # 1. Navigate to the root folder where docker-compose.yml is located
+                            cd /var/www/html
                             
                             echo 'Pulling latest code from ${env.BRANCH_NAME}...'
+                            # WARNING: This assumes /var/www/html is a git repo tracking your code
                             git pull origin ${env.BRANCH_NAME}
                             
                             echo 'Building project...'
-                            case \\"${PROJECT_TYPE}\\" in
-                                vue) 
-                                    echo 'Deploying Vue via Docker Compose for ${env.BRANCH_NAME}...'
-                                    # Jenkins environment variables are passed to the shell automatically
-                                    docker compose up -d --build vue-app 
-                                    ;;
-                                    
-                                nextjs) 
-                                    VITE_BASE_URL=\\"/vue/${env.BRANCH_NAME}/\\" npm run build
-                                    pm2 restart ${PROJECT_TYPE}-${env.BRANCH_NAME} ;;
-                                laravel) 
-                                    sudo php artisan optimize  ;;
-                            esac
+                            # This uses PROJECT_TYPE (e.g. 'vue') to target 'vue-app' service
+                            docker compose up -d --build ${PROJECT_TYPE}-app
                             
                             echo '✅ Deployment Successfully Completed for ${env.BRANCH_NAME}.'
                         "
