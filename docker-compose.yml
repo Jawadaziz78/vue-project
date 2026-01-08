@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  # VUE PROJECT SERVICE
+  # VUE PROJECT
   vue-app:
     build:
-      context: ./${BRANCH_NAME}/vue-project
-      dockerfile: Dockerfile
+      # Use absolute path from root to avoid "context" errors during Jenkins cd
+      context: /var/www/html/${BRANCH_NAME}/vue-project
       args:
         - VITE_BASE_URL=/vue/${BRANCH_NAME}/
     container_name: vue-${BRANCH_NAME}
@@ -15,36 +15,25 @@ services:
     ports:
       - "${VUE_PORT}:80"
 
-  # LARAVEL PROJECT SERVICE
+  # LARAVEL PROJECT
   laravel-app:
     build:
-      context: ./${BRANCH_NAME}/laravel-project
-      dockerfile: Dockerfile
+      context: /var/www/html/${BRANCH_NAME}/laravel-project
     container_name: laravel-${BRANCH_NAME}
     restart: always
     environment:
-      - DB_CONNECTION=${DB_CONNECTION}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
       - DB_DATABASE=laravel_${BRANCH_NAME}_db
-      - DB_USERNAME=${DB_USERNAME}
-      - DB_PASSWORD=${DB_PASSWORD}
     networks:
       - gateway-net
 
-  # NEXTJS PROJECT SERVICE
+  # NEXTJS PROJECT
   nextjs-app:
     build:
-      context: ./${BRANCH_NAME}/nextjs-project
-      dockerfile: Dockerfile
+      context: /var/www/html/${BRANCH_NAME}/nextjs-project
       args:
         - NEXT_PUBLIC_BASE_PATH=/nextjs/${BRANCH_NAME}
     container_name: nextjs-${BRANCH_NAME}
     restart: always
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_BASE_PATH=/nextjs/${BRANCH_NAME}
-      - PORT=3000
     networks:
       - gateway-net
     ports:
