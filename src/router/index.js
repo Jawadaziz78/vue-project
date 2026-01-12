@@ -24,7 +24,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory('/vue/'), // history mode with base /vue/
+  history: createWebHistory(import.meta.env.BASE_URL), // history mode with base /vue/
   routes,
   linkActiveClass: 'active',
 })
